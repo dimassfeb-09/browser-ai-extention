@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import { browser } from 'wxt/browser';
   import {
     loadSettings,
     saveSettings,
@@ -206,7 +207,20 @@
     running = true;
     signal.aborted = false;
     const steps: string[] = [];
-    const driver = new TabContentDriver();
+    // Pin the run to the tab that is active RIGHT NOW. Without a pinned
+    // id the driver re-resolves "the active tab" on every step, so the
+    // agent would follow the user to another tab mid-run and start
+    // acting there. With the pin, the user can switch tabs/windows
+    // freely; if the pinned tab is closed the run errors out instead of
+    // jumping somewhere else.
+    let targetTabId: number | undefined;
+    try {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      targetTabId = tab?.id;
+    } catch {
+      // Fall back to the driver's dynamic active-tab resolution.
+    }
+    const driver = new TabContentDriver(targetTabId);
     const llm = new ChatCompletionsClient({
       apiKey: settings.apiKey,
       model: settings.model,

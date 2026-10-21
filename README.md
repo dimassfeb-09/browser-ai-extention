@@ -48,6 +48,10 @@ above that works on plain JSON and is unit-testable without a browser.
   of burning tokens.
 - **Shadow DOM** — the collector walks open shadow roots.
 - **Human handoff** — `ask_user` pauses the run for captcha/OTP/payment.
+- **Tab pinning** — a run is locked to the tab that was active when you
+  pressed Send. Switch tabs or windows freely while it works; the agent
+  will not follow you. If you close the target tab, the run errors out
+  instead of jumping to another tab.
 - **Step budget** — configurable per run in Settings ("Max steps per
   run", default 100, 0 = no limit). Long runs get a checkpoint notice
   every 25 steps instead of a surprise stop, and hitting the budget

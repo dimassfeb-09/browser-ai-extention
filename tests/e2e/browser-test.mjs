@@ -258,6 +258,36 @@ try {
   await panel.waitForFunction(() => document.body.innerText.includes('Recalled from this chat'), { timeout: 30_000 });
   check('B2 follow-up answered from conversation history (cross-run memory)', true);
 
+  // ---------- Part B3: a run stays pinned to its starting tab ----------
+  // Start a run on a fresh fixture tab, then immediately switch to
+  // another tab. With dynamic active-tab resolution the agent would
+  // follow the user and act on the WRONG page; pinned to the tab that
+  // was active at Send, it must finish the original tab's task and
+  // leave the tab the user switched to completely untouched.
+  await panel.locator('#newChatBtn').click();
+  const pageF = await context.newPage();
+  await pageF.goto(`${fixtureBase}/react-form.html`);
+  await panel.locator('textarea').fill('Subscribe with test@example.com');
+  await pageF.bringToFront();
+  await panel.evaluate(() => {
+    [...document.querySelectorAll('button')].find((b) => b.textContent === 'Send')?.click();
+  });
+  // Let the run get going (email typed), THEN the user walks away to
+  // another tab — the realistic case. (Hiding a tab mid-initial-load
+  // freezes it in headless Chromium; real background tabs keep running,
+  // which Part A/B3's later steps exercise: the Subscribe click and the
+  // final observe all happen while pageF is in the background.)
+  await pageF.waitForFunction(() => document.getElementById('state').textContent === 'test@example.com', { timeout: 15_000 });
+  const pageG = await context.newPage();
+  await pageG.goto(`${fixtureBase}/shadow-dom.html`);
+  await pageG.bringToFront(); // the user "walks away" to another tab
+  await panel.waitForFunction(() => document.body.innerText.includes('Email filled and subscribed.'), { timeout: 30_000 });
+  const stateF = await pageF.evaluate(() => document.getElementById('state').textContent);
+  check('B3 run finished on its ORIGINAL tab after the user switched away',
+    stateF === 'subscribed:test@example.com', `state=${stateF}`);
+  const stateG = await pageG.evaluate(() => document.getElementById('result').textContent);
+  check('B3 the tab the user switched to was never touched', stateG === 'not clicked', `result=${stateG}`);
+
   // ---------- Part C: chat history + per-window sessions ----------
   const messagesText = () =>
     panel.evaluate(() => document.querySelector('[data-testid="messages"]').innerText);
@@ -292,8 +322,11 @@ try {
     { timeout: 10_000 },
   );
   check('C2 old chat listed in History with its goal as title', true);
+  // Two sessions now share this goal title (Part B's, with the B2
+  // follow-up = 4 messages, and B3's = 2). Reopen Part B's: it is the
+  // one whose summary the next check looks for.
   await panel
-    .locator('[data-testid="history"] .open', { hasText: 'Subscribe with test@example.com' })
+    .locator('[data-testid="history"] .open', { hasText: '4 messages' })
     .click();
   await sleep(400);
   const reopened = await messagesText();
