@@ -17,20 +17,29 @@ export default defineBackground(() => {
     .catch(() => undefined);
   void sidePanel?.setOptions({ enabled: false }).catch(() => undefined);
 
-  browser.action?.onClicked.addListener(async (tab) => {
+  browser.action?.onClicked.addListener((tab) => {
     if (!sidePanel || tab.id == null) return;
-    try {
-      await sidePanel.setOptions({ tabId: tab.id, path: 'sidepanel.html', enabled: true });
-      await sidePanel.open({ tabId: tab.id });
-    } catch {
-      // Environments without per-tab options: fall back to the classic
-      // window-wide panel rather than no panel at all.
-      try {
-        await sidePanel.setOptions({ enabled: true });
-        await sidePanel.open({ windowId: tab.windowId });
-      } catch {
-        // No side panel support — nothing sensible left to do.
-      }
-    }
+    const tabId = tab.id;
+    // CRITICAL: sidePanel.open() may only be called in response to a
+    // user gesture, and Chrome drops the gesture context at the first
+    // await. So setOptions and open are issued BACK TO BACK in the
+    // same synchronous turn of this click handler — Chrome processes
+    // extension API calls in issue order, so the tab is enabled
+    // before the open is handled. (Awaiting setOptions first made
+    // open() reject with a gesture error and the panel unopenable.)
+    const enable = sidePanel.setOptions({ tabId, path: 'sidepanel.html', enabled: true });
+    const open = sidePanel.open({ tabId });
+    void Promise.allSettled([enable, open]).then(([, openResult]) => {
+      if (openResult.status === 'fulfilled') return;
+      // Rescue ladder: never leave the user with an unopenable panel.
+      // Fall back to the classic window-wide behavior — the panel
+      // becomes available everywhere and the NEXT icon click opens
+      // it the way Chrome natively handles it.
+      console.warn('per-tab sidePanel.open failed, falling back to window-wide panel', openResult.reason);
+      void sidePanel.setOptions({ enabled: true }).catch(() => undefined);
+      void sidePanel
+        .setPanelBehavior({ openPanelOnActionClick: true })
+        .catch(() => undefined);
+    });
   });
 });
