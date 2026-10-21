@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- Inner form, loaded inside an iframe by iframe-form.html. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Inner form</title></head>
+  <body>
+    <div><label for="k-kode">Kode Voucher</label><input id="k-kode" type="text" /></div>
+    <button id="proses" type="button">Proses</button>
+    <div id="result"></div>
+    <script>
+      document.getElementById('proses').addEventListener('click', () => {
+        document.getElementById('result').textContent =
+          'INNER OK kode=' + document.getElementById('k-kode').value;
+      });
+    </script>
+  </body>
+</html>

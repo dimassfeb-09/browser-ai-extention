@@ -1,0 +1,79 @@
+<!doctype html>
+<!-- Paginated data grid with inline editing (vanilla). 25 rows, 5 per
+     page. Every row has an identical "Edit" button — the row context in
+     the snapshot is the only way to tell them apart. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — Grid pagination</title>
+    <style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px 8px}.pager button{margin:2px}</style>
+  </head>
+  <body>
+    <h1>Data pengguna</h1>
+    <table>
+      <thead><tr><th>Kode</th><th>Nama</th><th>Status</th><th>Aksi</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="pager" id="pager"></div>
+    <div id="info"></div>
+    <script>
+      const data = Array.from({ length: 25 }, (_, i) => ({
+        code: 'USR-' + String(i + 1).padStart(3, '0'),
+        name: 'Nama' + (i + 1),
+        status: 'Aktif',
+      }));
+      const PAGE = 5;
+      let page = 1;
+      let editing = null;
+      const tbody = document.getElementById('tbody');
+
+      function render() {
+        tbody.innerHTML = '';
+        const rows = data.slice((page - 1) * PAGE, page * PAGE);
+        for (const row of rows) {
+          const tr = document.createElement('tr');
+          if (editing === row.code) {
+            tr.innerHTML =
+              `<td>${row.code}</td>` +
+              `<td><input type="text" aria-label="Nama ${row.code}" value="${row.name}" /></td>` +
+              `<td><select aria-label="Status ${row.code}">` +
+              `<option ${row.status === 'Aktif' ? 'selected' : ''}>Aktif</option>` +
+              `<option ${row.status === 'Nonaktif' ? 'selected' : ''}>Nonaktif</option></select></td>`;
+            const td = document.createElement('td');
+            const save = document.createElement('button');
+            save.type = 'button';
+            save.textContent = 'Save';
+            save.addEventListener('click', () => {
+              row.name = tr.querySelector('input').value;
+              row.status = tr.querySelector('select').value;
+              editing = null;
+              render();
+            });
+            td.appendChild(save);
+            tr.appendChild(td);
+          } else {
+            tr.innerHTML = `<td>${row.code}</td><td>${row.name}</td><td>${row.status}</td>`;
+            const td = document.createElement('td');
+            const edit = document.createElement('button');
+            edit.type = 'button';
+            edit.textContent = 'Edit';
+            edit.addEventListener('click', () => { editing = row.code; render(); });
+            td.appendChild(edit);
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        }
+        const pager = document.getElementById('pager');
+        pager.innerHTML = '';
+        const pages = Math.ceil(data.length / PAGE);
+        for (let p = 1; p <= pages; p++) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = String(p);
+          b.addEventListener('click', () => { page = p; editing = null; render(); });
+          pager.appendChild(b);
+        }
+        document.getElementById('info').textContent = `Halaman ${page} dari ${pages}`;
+      }
+      render();
+    </script>
+  </body>
+</html>

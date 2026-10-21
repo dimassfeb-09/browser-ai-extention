@@ -8,6 +8,12 @@ import type { Action } from './types';
 export const actionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('click'), index: z.number().int().nonnegative() }),
   z.object({
+    type: z.literal('click_at'),
+    index: z.number().int().nonnegative(),
+    x: z.number().min(0).max(10_000),
+    y: z.number().min(0).max(10_000),
+  }),
+  z.object({
     type: z.literal('type'),
     index: z.number().int().nonnegative(),
     text: z.string().max(10_000),
@@ -27,17 +33,21 @@ export function parseAction(raw: unknown): Action {
   return actionSchema.parse(raw) as Action;
 }
 
-/** Flat tool-args shape returned by the model, mapped into an Action. */
+/** Flat tool-args shape returned by the model, mapped into an Action.
+ *  Optional fields are nullish: real models routinely send null for
+ *  unused fields instead of omitting them — that is not an error. */
 const toolArgsSchema = z.object({
-  type: z.enum(['click', 'type', 'scroll', 'navigate', 'wait', 'done', 'ask_user']),
-  index: z.number().int().nonnegative().optional(),
-  text: z.string().optional(),
-  direction: z.enum(['up', 'down']).optional(),
-  amount: z.number().int().positive().optional(),
-  url: z.string().optional(),
-  ms: z.number().int().min(0).optional(),
-  summary: z.string().optional(),
-  question: z.string().optional(),
+  type: z.enum(['click', 'click_at', 'type', 'scroll', 'navigate', 'wait', 'done', 'ask_user']),
+  index: z.number().int().nonnegative().nullish(),
+  x: z.number().min(0).nullish(),
+  y: z.number().min(0).nullish(),
+  text: z.string().nullish(),
+  direction: z.enum(['up', 'down']).nullish(),
+  amount: z.number().int().positive().nullish(),
+  url: z.string().nullish(),
+  ms: z.number().int().min(0).nullish(),
+  summary: z.string().nullish(),
+  question: z.string().nullish(),
 });
 
 export function actionFromToolArgs(rawArgs: unknown): Action {
@@ -46,6 +56,13 @@ export function actionFromToolArgs(rawArgs: unknown): Action {
   switch (args.type) {
     case 'click':
       return parseAction({ type: 'click', index: args.index ?? -1 });
+    case 'click_at':
+      return parseAction({
+        type: 'click_at',
+        index: args.index ?? -1,
+        x: args.x ?? 0,
+        y: args.y ?? 0,
+      });
     case 'type':
       return parseAction({ type: 'type', index: args.index ?? -1, text: args.text ?? '' });
     case 'scroll':
@@ -78,10 +95,12 @@ export const toolDefinitions = [
         properties: {
           type: {
             type: 'string',
-            enum: ['click', 'type', 'scroll', 'navigate', 'wait', 'done', 'ask_user'],
+            enum: ['click', 'click_at', 'type', 'scroll', 'navigate', 'wait', 'done', 'ask_user'],
             description: 'The action to perform.',
           },
           index: { type: 'number', description: 'Element index from the snapshot (click/type).' },
+          x: { type: 'number', description: 'X offset in px inside the element (click_at, e.g. canvas regions).' },
+          y: { type: 'number', description: 'Y offset in px inside the element (click_at).' },
           text: { type: 'string', description: 'Text to type (type).' },
           direction: { type: 'string', enum: ['up', 'down'], description: 'Scroll direction.' },
           amount: { type: 'number', description: 'Scroll pixels (optional).' },

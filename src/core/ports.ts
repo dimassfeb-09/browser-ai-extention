@@ -15,6 +15,8 @@ export interface LlmClient {
     goal: string;
     snapshot: PageSnapshot;
     history: StepRecord[];
+    /** Harness feedback for the model, e.g. "the last action had no effect". */
+    notice?: string;
   }): Promise<Action>;
 }
 

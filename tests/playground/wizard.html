@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- Vanilla multi-step wizard: step 2 does not exist in the visible
+     DOM until step 1 is completed — the agent must re-observe. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — Wizard</title></head>
+  <body>
+    <h1>Wizard pendaftaran</h1>
+    <div id="step1">
+      <div><label for="w-nama">Nama</label><input id="w-nama" type="text" /></div>
+      <div><label for="w-kota">Kota</label><input id="w-kota" type="text" /></div>
+      <button id="lanjut" type="button">Lanjut</button>
+    </div>
+    <div id="step2" hidden>
+      <div><label for="w-email">Email</label><input id="w-email" type="email" /></div>
+      <div><label for="w-tel">Telepon</label><input id="w-tel" type="tel" /></div>
+      <button id="kirim" type="button">Kirim</button>
+    </div>
+    <div id="result"></div>
+    <script>
+      document.getElementById('lanjut').addEventListener('click', () => {
+        document.getElementById('step1').hidden = true;
+        document.getElementById('step2').hidden = false;
+      });
+      document.getElementById('kirim').addEventListener('click', () => {
+        const v = (id) => document.getElementById(id).value;
+        document.getElementById('result').textContent =
+          `WIZARD OK nama=${v('w-nama')} kota=${v('w-kota')} email=${v('w-email')} tel=${v('w-tel')}`;
+        document.getElementById('step2').hidden = true;
+      });
+    </script>
+  </body>
+</html>

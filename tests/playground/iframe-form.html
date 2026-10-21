@@ -1,0 +1,12 @@
+<!doctype html>
+<!-- Parent page: the actual form lives in an iframe (form-inner.html).
+     The top frame's own snapshot must NOT contain the inner fields;
+     the agent reaches them per-frame (driver merge / frameId routing). -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — Iframe form</title></head>
+  <body>
+    <h1>Parent page</h1>
+    <p>Form-nya ada di iframe di bawah ini.</p>
+    <iframe src="/form-inner.html" width="620" height="260" title="inner"></iframe>
+  </body>
+</html>

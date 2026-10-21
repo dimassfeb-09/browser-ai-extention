@@ -1,0 +1,45 @@
+<!doctype html>
+<!-- Real Vue 3: custom dropdown component, switch, native date input. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — Vue custom controls</title>
+    <style>.dd-list{border:1px solid #999;width:180px}.dd-list button{display:block;width:100%;text-align:left}</style>
+  </head>
+  <body>
+    <h1>Vue — Custom controls</h1>
+    <div id="app"></div>
+    <script src="/vendor/vue.js"></script>
+    <script>
+      Vue.createApp({
+        data: () => ({
+          open: false,
+          city: '',
+          cities: ['Jakarta', 'Bandung', 'Surabaya'],
+          notif: false,
+          date: '',
+          done: '',
+        }),
+        methods: {
+          pick(c) { this.city = c; this.open = false; },
+          save() { this.done = `OK city=${this.city} notif=${this.notif ? 'on' : 'off'} date=${this.date}`; },
+        },
+        template: `
+          <div>
+            <div>
+              <span>Kota</span>
+              <button type="button" @click="open = !open">{{ city || 'Pilih kota' }}</button>
+              <div class="dd-list" v-if="open">
+                <button type="button" v-for="c in cities" :key="c" @click="pick(c)">{{ c }}</button>
+              </div>
+            </div>
+            <div>
+              <span>Notifikasi</span>
+              <button type="button" role="switch" :aria-checked="notif" @click="notif = !notif">{{ notif ? 'ON' : 'OFF' }}</button>
+            </div>
+            <div><label for="vc-date">Tanggal</label><input id="vc-date" type="date" v-model="date" /></div>
+            <button type="button" @click="save">Simpan</button>
+            <div id="result" v-if="done">{{ done }}</div>
+          </div>`,
+      }).mount('#app');
+    </script>
+  </body>
+</html>

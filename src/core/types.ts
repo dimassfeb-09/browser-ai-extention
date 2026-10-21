@@ -18,6 +18,15 @@ export interface ElementRef {
   label: string;
   /** Current value for inputs/selects/textareas. */
   value?: string;
+  /** The control's type attribute (text, email, checkbox, date, ...) for form fields. */
+  inputType?: string;
+  disabled?: boolean;
+  /**
+   * Surrounding context that identifies WHICH item this control belongs
+   * to — e.g. the text of its table row ("USR-023 Nama23 Aktif"). Without
+   * it, every row's Edit button looks identical to the model.
+   */
+  context?: string;
   placeholder?: string;
   href?: string;
   fingerprint: Fingerprint;
@@ -35,6 +44,9 @@ export interface PageSnapshot {
 
 export type Action =
   | { type: 'click'; index: number }
+  /** Click at an offset (px) inside the element — for canvas UIs and
+   *  widgets where the meaningful target is a region, not an element. */
+  | { type: 'click_at'; index: number; x: number; y: number }
   | { type: 'type'; index: number; text: string }
   | { type: 'scroll'; direction: 'up' | 'down'; amount?: number }
   | { type: 'navigate'; url: string }

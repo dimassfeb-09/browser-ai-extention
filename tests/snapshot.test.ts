@@ -3,6 +3,7 @@ import {
   cleanElements,
   findByFingerprint,
   hashSnapshot,
+  mergeSnapshots,
   truncateSnapshot,
 } from '../src/core/snapshot';
 import type { ElementRef, PageSnapshot } from '../src/core/types';
@@ -53,6 +54,39 @@ describe('truncateSnapshot', () => {
     const out = truncateSnapshot(snapshot(many, 'x'.repeat(50_000)), 12_000);
     expect(JSON.stringify(out).length).toBeLessThanOrEqual(12_100);
     expect(out.elements.length).toBeLessThan(300);
+  });
+});
+
+describe('mergeSnapshots (multi-frame pages)', () => {
+  it('re-indexes elements across frames in order and keeps the top frame identity', () => {
+    const top: PageSnapshot = {
+      url: 'https://example.com/parent',
+      title: 'Parent',
+      text: 'parent text',
+      capturedAt: 5,
+      elements: cleanElements([el('Menu', 'body > button')]),
+    };
+    const frame: PageSnapshot = {
+      url: 'https://example.com/inner',
+      title: 'Inner',
+      text: 'inner text',
+      capturedAt: 9,
+      elements: cleanElements([el('Kode', 'body > input'), el('Proses', 'body > button')]),
+    };
+    const merged = mergeSnapshots([top, frame]);
+    expect(merged.url).toBe('https://example.com/parent');
+    expect(merged.elements.map((e) => [e.index, e.label])).toEqual([
+      [0, 'Menu'],
+      [1, 'Kode'],
+      [2, 'Proses'],
+    ]);
+    expect(merged.text).toContain('parent text');
+    expect(merged.text).toContain('inner text');
+    expect(merged.capturedAt).toBe(9);
+  });
+
+  it('handles an empty list without crashing', () => {
+    expect(mergeSnapshots([]).elements).toEqual([]);
   });
 });
 

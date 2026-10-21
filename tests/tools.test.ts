@@ -34,4 +34,22 @@ describe('actionFromToolArgs', () => {
   it('throws on a navigate without a valid URL instead of executing garbage', () => {
     expect(() => actionFromToolArgs({ type: 'navigate', url: 'bukan-url' })).toThrow();
   });
+  it('maps click_at with coordinates and rejects negative offsets', () => {
+    expect(actionFromToolArgs({ type: 'click_at', index: 2, x: 120, y: 40 })).toEqual({
+      type: 'click_at',
+      index: 2,
+      x: 120,
+      y: 40,
+    });
+    expect(() => parseAction({ type: 'click_at', index: 2, x: -5, y: 0 })).toThrow();
+  });
+  it('treats null as "field not provided" (models send null for unused fields)', () => {
+    expect(
+      actionFromToolArgs({ type: 'click', index: 4, text: null, url: null, ms: null }),
+    ).toEqual({ type: 'click', index: 4 });
+    expect(actionFromToolArgs({ type: 'done', summary: null })).toEqual({
+      type: 'done',
+      summary: 'Done.',
+    });
+  });
 });

@@ -1,0 +1,100 @@
+<!doctype html>
+<!-- Vanilla custom controls: contenteditable, div dropdown, range,
+     autocomplete suggestions, dynamic rows. No framework at all. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — Custom controls</title>
+    <style>#editor{border:1px solid #999;min-height:40px;padding:6px}.opt{display:block;width:180px;text-align:left}</style>
+  </head>
+  <body>
+    <h1>Custom controls</h1>
+
+    <div>
+      <span>Catatan</span>
+      <div id="editor" contenteditable="true" aria-label="Catatan"></div>
+      <button id="saveNote" type="button">Simpan Catatan</button>
+      <div id="noteResult"></div>
+    </div>
+
+    <div>
+      <span>Warna favorit</span>
+      <button id="ddBtn" type="button">Pilih warna</button>
+      <div id="ddList" hidden>
+        <button class="opt" type="button" role="option" data-v="Merah">Merah</button>
+        <button class="opt" type="button" role="option" data-v="Biru">Biru</button>
+        <button class="opt" type="button" role="option" data-v="Hijau">Hijau</button>
+      </div>
+      <span id="ddValue"></span>
+    </div>
+
+    <div>
+      <label for="vol">Volume</label>
+      <input id="vol" type="range" min="0" max="100" value="20" />
+      <output id="volOut">20</output>
+    </div>
+
+    <div>
+      <label for="ac">Buah</label>
+      <input id="ac" type="text" autocomplete="off" />
+      <div id="acList"></div>
+      <span id="acValue"></span>
+    </div>
+
+    <div>
+      <button id="addRow" type="button">Tambah Baris</button>
+      <div id="rows"></div>
+      <span id="rowCount">Jumlah baris: 0</span>
+    </div>
+
+    <script>
+      const editor = document.getElementById('editor');
+      document.getElementById('saveNote').addEventListener('click', () => {
+        document.getElementById('noteResult').textContent = 'NOTE: ' + editor.textContent.trim();
+      });
+
+      const ddList = document.getElementById('ddList');
+      document.getElementById('ddBtn').addEventListener('click', () => (ddList.hidden = !ddList.hidden));
+      ddList.querySelectorAll('.opt').forEach((b) =>
+        b.addEventListener('click', () => {
+          document.getElementById('ddValue').textContent = b.dataset.v;
+          document.getElementById('ddBtn').textContent = b.dataset.v;
+          ddList.hidden = true;
+        }),
+      );
+
+      const vol = document.getElementById('vol');
+      vol.addEventListener('input', () => (document.getElementById('volOut').textContent = vol.value));
+
+      const fruits = ['Apel', 'Aprikot', 'Alpukat', 'Pisang'];
+      const ac = document.getElementById('ac');
+      const acList = document.getElementById('acList');
+      ac.addEventListener('input', () => {
+        const q = ac.value.toLowerCase();
+        acList.innerHTML = '';
+        if (!q) return;
+        fruits
+          .filter((f) => f.toLowerCase().includes(q) && f.toLowerCase() !== q)
+          .forEach((f) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = f;
+            b.addEventListener('click', () => {
+              ac.value = f;
+              document.getElementById('acValue').textContent = f;
+              acList.innerHTML = '';
+            });
+            acList.appendChild(b);
+          });
+      });
+
+      let rowN = 0;
+      document.getElementById('addRow').addEventListener('click', () => {
+        rowN++;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Baris ' + rowN;
+        document.getElementById('rows').appendChild(input);
+        document.getElementById('rowCount').textContent = 'Jumlah baris: ' + rowN;
+      });
+    </script>
+  </body>
+</html>

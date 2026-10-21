@@ -36,7 +36,6 @@
   let running = $state(false);
   let showHistory = $state(false);
   let showSettings = $state(false);
-  let statusLine = $state('');
   let models = $state<string[]>([]);
   let modelsLoading = $state(false);
   let modelsError = $state('');
@@ -67,14 +66,12 @@
   async function newChat() {
     chatState = startNewSession(chatState, windowId, uid(), Date.now());
     showHistory = false;
-    statusLine = '';
     await persist();
   }
 
   async function openSession(id: string) {
     chatState = setActiveSession(chatState, windowId, id);
     showHistory = false;
-    statusLine = '';
     await persist();
     await scrollToBottom();
   }
@@ -88,7 +85,6 @@
   async function clearCurrentChat() {
     if (!current) return;
     chatState = upsertSession(chatState, { ...current, messages: [], title: 'New chat', updatedAt: Date.now() });
-    statusLine = '';
     await persist();
     await scrollToBottom();
   }
@@ -138,13 +134,11 @@
     const goal = draft.trim();
     if (!goal || running) return;
     if (!settings.apiKey) {
-      statusLine = 'Fill in your OpenAI API key in Settings first.';
       showSettings = true;
       return;
     }
     if (!current) return;
     draft = '';
-    statusLine = '';
     await saveSettings(settings);
 
     const now = Date.now();
@@ -200,9 +194,20 @@
         chatState = upsertSession(chatState, { ...live, messages: msgs });
         await persist();
       }
-      statusLine = `${result.status} — ${result.summary}`;
     } catch (err) {
-      statusLine = `error — ${err instanceof Error ? err.message : String(err)}`;
+      // No status bar above the composer: failures surface inside the
+      // assistant bubble itself, like a normal chat reply.
+      const message = err instanceof Error ? err.message : String(err);
+      const live = activeSession(chatState, windowId);
+      if (live) {
+        const msgs = live.messages.map((m) =>
+          m.id === draftMsg.id
+            ? { ...m, content: `Error: ${message}`, status: 'error', steps: [...steps] }
+            : m,
+        );
+        chatState = upsertSession(chatState, { ...live, messages: msgs });
+        await persist();
+      }
     } finally {
       running = false;
       await scrollToBottom();
@@ -293,8 +298,6 @@
       {/each}
     {/if}
   </div>
-
-  {#if statusLine}<p class="status">{statusLine}</p>{/if}
 
   <div class="inputbar">
     <div class="input-shell">

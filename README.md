@@ -48,6 +48,18 @@ above that works on plain JSON and is unit-testable without a browser.
   of burning tokens.
 - **Shadow DOM** — the collector walks open shadow roots.
 - **Human handoff** — `ask_user` pauses the run for captcha/OTP/payment.
+- **Iframes** — the content script runs in all frames; the driver merges
+  per-frame snapshots into one and routes actions back by frameId.
+- **Forms** — `<select>` accepts the option's visible text or value;
+  field labels come from real `<label>` associations, not just the
+  control's own text.
+- **Grids** — snapshot lines carry row context (`ctx="USR-023 …"`) so
+  identical per-row buttons (Edit/Delete) are distinguishable.
+- **Hard widgets** — masked inputs (phone/Rupiah) verify digit-tolerantly
+  instead of failing on reformatting; OTP split boxes distribute one
+  typed code across the boxes; canvas/tabindex widgets get a real
+  per-character keyboard sequence, and `click_at` clicks coordinates
+  inside an element for canvas regions.
 
 ## Develop
 
@@ -56,11 +68,11 @@ npm install
 npm run dev        # WXT dev build with reload
 npm test           # vitest unit tests (core + OpenAI client, all offline)
 npm run typecheck  # wxt prepare + tsc --noEmit (strict)
-npm run build      # production build into .output/
+npm run build      # production build into output/
 ```
 
 Load it in Chrome: `chrome://extensions` → Developer mode → Load unpacked →
-select `.output/chrome-mv3`. Click the toolbar icon, paste your API key,
+select `output/chrome-mv3`. Click the toolbar icon, paste your API key,
 type a goal for the active tab, Run.
 
 ## Tests
@@ -69,6 +81,21 @@ type a goal for the active tab, Run.
   ScriptedLlm, fake fetch). No network, no API key, deterministic.
 - `tests/fixtures/*.html` — nasty-case pages (React-like controlled input,
   async modal + infinite scroll, shadow DOM).
+- `tests/playground/*.html` + `tests/e2e/forms-test.mjs`
+  (`npm run test:forms`) — a no-DB playground of **real React 18 and
+  Vue 3 apps** plus vanilla pages covering the nasty cases: controlled
+  forms, separate `<label for>` fields, modal forms, dynamic rows,
+  custom dropdowns, switches, date inputs, contenteditable, range,
+  autocomplete, multi-step wizards, and a form inside an iframe.
+  Scenarios drive the real content script and assert each page's own end
+  state. Batch 2 (`npm run test:forms2`, same playground) covers the
+  shapes that usually break automation: a paginated editable grid,
+  native `<dialog>`, a custom confirm dialog, masked phone/currency
+  inputs, OTP split boxes, a calendar date picker, a canvas-rendered
+  form, and a form inside shadow DOM. Verified 30/30 total on
+  2026-10-21 — the shadow case caught (and fixed) a real indexing bug
+  where two shadow inputs shared one cssPath and actions landed on the
+  wrong field.
 - `tests/e2e/browser-test.mjs` (`npm run test:browser`, needs Xvfb/a display) —
   loads the **built** extension into real Chromium via Playwright. Part A
   drives the content script through real extension messaging (typing must

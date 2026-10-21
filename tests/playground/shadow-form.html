@@ -1,0 +1,29 @@
+<!doctype html>
+<!-- A complete form inside an open shadow root (Web Component). The
+     light DOM only shows the host element; fields live in the shadow
+     tree and the result is written back out to the light DOM. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — Shadow DOM form</title></head>
+  <body>
+    <h1>Shadow DOM form</h1>
+    <shadow-form></shadow-form>
+    <div id="result"></div>
+    <script>
+      class ShadowForm extends HTMLElement {
+        connectedCallback() {
+          const root = this.attachShadow({ mode: 'open' });
+          root.innerHTML = `
+            <div><label for="s-nama">Nama</label><input id="s-nama" type="text" /></div>
+            <div><label for="s-email">Email</label><input id="s-email" type="email" /></div>
+            <button id="s-kirim" type="button">Kirim Shadow</button>`;
+          root.getElementById('s-kirim').addEventListener('click', () => {
+            const nama = root.getElementById('s-nama').value;
+            const email = root.getElementById('s-email').value;
+            document.getElementById('result').textContent = `SHADOW OK nama=${nama} email=${email}`;
+          });
+        }
+      }
+      customElements.define('shadow-form', ShadowForm);
+    </script>
+  </body>
+</html>

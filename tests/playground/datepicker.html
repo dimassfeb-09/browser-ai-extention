@@ -1,0 +1,52 @@
+<!doctype html>
+<!-- Custom calendar date picker: the input is read-only; a date can only
+     be chosen by opening the calendar, navigating months, clicking a day. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — Date picker</title>
+    <style>.cal{border:1px solid #999;width:280px;padding:8px}.cal .grid button{width:36px;margin:1px}</style>
+  </head>
+  <body>
+    <h1>Date picker</h1>
+    <div><label for="tgl">Tanggal Lahir</label><input id="tgl" type="text" readonly placeholder="Pilih tanggal" /></div>
+    <div class="cal" id="cal" hidden>
+      <div>
+        <button id="prev" type="button" aria-label="Bulan sebelumnya">‹</button>
+        <span id="calTitle"></span>
+        <button id="next" type="button" aria-label="Bulan berikutnya">›</button>
+      </div>
+      <div class="grid" id="grid"></div>
+    </div>
+    <script>
+      const input = document.getElementById('tgl');
+      const cal = document.getElementById('cal');
+      const title = document.getElementById('calTitle');
+      const grid = document.getElementById('grid');
+      const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      let view = { y: 2026, m: 9 }; // Oktober 2026
+      function render() {
+        title.textContent = `${MONTHS[view.m]} ${view.y}`;
+        grid.innerHTML = '';
+        const days = new Date(view.y, view.m + 1, 0).getDate();
+        for (let d = 1; d <= days; d++) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = String(d);
+          b.addEventListener('click', () => {
+            const mm = String(view.m + 1).padStart(2, '0');
+            const dd = String(d).padStart(2, '0');
+            input.value = `${view.y}-${mm}-${dd}`;
+            cal.hidden = true;
+          });
+          grid.appendChild(b);
+        }
+      }
+      input.addEventListener('click', () => { cal.hidden = false; render(); });
+      document.getElementById('prev').addEventListener('click', () => {
+        view.m--; if (view.m < 0) { view.m = 11; view.y--; } render();
+      });
+      document.getElementById('next').addEventListener('click', () => {
+        view.m++; if (view.m > 11) { view.m = 0; view.y++; } render();
+      });
+    </script>
+  </body>
+</html>

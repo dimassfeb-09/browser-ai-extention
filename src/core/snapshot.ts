@@ -5,7 +5,7 @@ export function hashSnapshot(snapshot: PageSnapshot): string {
   const parts = [
     snapshot.url,
     ...snapshot.elements.map(
-      (el) => `${el.index}:${el.tag}:${el.label}:${el.value ?? ''}`,
+      (el) => `${el.index}:${el.tag}:${el.label}:${el.value ?? ''}:${el.context ?? ''}`,
     ),
   ];
   let hash = 5381;
@@ -54,6 +54,31 @@ export function truncateSnapshot(snapshot: PageSnapshot, maxChars = 12_000): Pag
     elements = elements.slice(0, Math.floor(elements.length * 0.8));
   }
   return { ...snapshot, text: textBudget, elements };
+}
+
+/**
+ * Merge per-frame snapshots (top frame first) into one page snapshot
+ * with fresh sequential indices. The driver keeps the index -> frame
+ * routing table; element identity inside a frame is untouched.
+ */
+export function mergeSnapshots(snapshots: PageSnapshot[]): PageSnapshot {
+  const first = snapshots[0];
+  if (!first) {
+    return { url: '', title: '', elements: [], text: '', capturedAt: Date.now() };
+  }
+  const elements: ElementRef[] = [];
+  for (const snap of snapshots) {
+    for (const el of snap.elements) {
+      elements.push({ ...el, index: elements.length });
+    }
+  }
+  return {
+    url: first.url,
+    title: first.title,
+    elements,
+    text: snapshots.map((s) => s.text).filter(Boolean).join('\n'),
+    capturedAt: Math.max(...snapshots.map((s) => s.capturedAt)),
+  };
 }
 
 /**

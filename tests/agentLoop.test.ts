@@ -108,6 +108,60 @@ describe('runAgent', () => {
     expect(result.history).toHaveLength(0);
   });
 
+  it('warns the model when an action had no effect, and lets it recover', async () => {
+    // Regression test for the real Master Data failure log: a click that
+    // changed nothing used to abort the run as "stuck" on the 3rd identical
+    // observation, without the model ever being told.
+    const notices: Array<string | undefined> = [];
+    const script: Action[] = [
+      { type: 'click', index: 0 },
+      { type: 'click', index: 0 },
+      { type: 'done', summary: 'recovered' },
+    ];
+    const llm: LlmClient = {
+      nextAction: async (input) => {
+        notices.push(input.notice);
+        const next = script.shift();
+        if (!next) throw new Error('script exhausted');
+        return next;
+      },
+    };
+    const staticDriver: BrowserDriver = {
+      observe: async () => snap('https://example.com/', 'selalu-sama'),
+      act: async () => ({ ok: true, message: 'clicked (nothing happened)', level: 0 }),
+    };
+    const result = await runAgent('coba lagi', {
+      driver: staticDriver,
+      llm,
+      clock: fakeClock,
+    });
+    expect(result.status).toBe('done');
+    expect(notices[0]).toBeUndefined();
+    expect(notices[1]).toContain('did NOT change');
+    expect(notices[2]).toContain('did NOT change');
+  });
+
+  it('stops a model that insists on the identical no-effect action, without executing it endlessly', async () => {
+    let actCount = 0;
+    const staticDriver: BrowserDriver = {
+      observe: async () => snap('https://example.com/', 'selalu-sama'),
+      act: async () => {
+        actCount++;
+        return { ok: true, message: 'clicked (nothing happened)', level: 0 };
+      },
+    };
+    const result = await runAgent('ngeyel', {
+      driver: staticDriver,
+      llm: new ScriptedLlm(
+        Array.from({ length: 10 }, () => ({ type: 'click', index: 0 }) as Action),
+      ),
+      clock: fakeClock,
+    });
+    expect(result.status).toBe('stuck');
+    expect(result.summary).toContain('click [0]');
+    expect(actCount).toBe(2); // 3rd identical proposal is refused, not executed
+  });
+
   it('turns observe failures into an error result instead of throwing', async () => {
     const broken: BrowserDriver = {
       observe: async () => {

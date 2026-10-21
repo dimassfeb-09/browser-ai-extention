@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Native <dialog> with showModal(): top-layer rendering, background
+     inert. Fields only become visible/observable while it is open. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — Native dialog</title></head>
+  <body>
+    <h1>Native dialog form</h1>
+    <button id="buka" type="button">Buka Dialog</button>
+    <dialog id="dlg">
+      <div><label for="d-nama">Nama</label><input id="d-nama" type="text" /></div>
+      <div><label for="d-kota">Kota</label><input id="d-kota" type="text" /></div>
+      <button id="kirim" type="button">Kirim</button>
+      <button id="batal" type="button">Batal</button>
+    </dialog>
+    <div id="result"></div>
+    <script>
+      const dlg = document.getElementById('dlg');
+      document.getElementById('buka').addEventListener('click', () => dlg.showModal());
+      document.getElementById('batal').addEventListener('click', () => dlg.close());
+      document.getElementById('kirim').addEventListener('click', () => {
+        document.getElementById('result').textContent =
+          `DIALOG OK nama=${document.getElementById('d-nama').value} kota=${document.getElementById('d-kota').value}`;
+        dlg.close();
+      });
+    </script>
+  </body>
+</html>

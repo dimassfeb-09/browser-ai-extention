@@ -1,0 +1,44 @@
+<!doctype html>
+<!-- Real Vue 3: v-model form with select, radio group, checkbox, textarea. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — Vue basic form</title></head>
+  <body>
+    <h1>Vue — Pendaftaran</h1>
+    <div id="app"></div>
+    <script src="/vendor/vue.js"></script>
+    <script>
+      Vue.createApp({
+        data: () => ({
+          form: { name: '', email: '', country: '', plan: '', bio: '', agree: false },
+          done: '',
+        }),
+        methods: {
+          submit() {
+            const f = this.form;
+            this.done = `OK name=${f.name} email=${f.email} country=${f.country} plan=${f.plan} agree=${f.agree ? 'yes' : 'no'} bio=${f.bio}`;
+          },
+        },
+        template: `
+          <form @submit.prevent="submit">
+            <div><label for="v-name">Nama</label><input id="v-name" type="text" v-model="form.name" /></div>
+            <div><label for="v-email">Email</label><input id="v-email" type="email" v-model="form.email" /></div>
+            <div><label for="v-country">Negara</label>
+              <select id="v-country" v-model="form.country">
+                <option value="">Pilih negara</option>
+                <option value="ID">Indonesia</option>
+                <option value="MY">Malaysia</option>
+              </select></div>
+            <div>
+              <span>Paket</span>
+              <input id="v-basic" type="radio" value="basic" v-model="form.plan" /><label for="v-basic">Basic</label>
+              <input id="v-pro" type="radio" value="pro" v-model="form.plan" /><label for="v-pro">Pro</label>
+            </div>
+            <div><label for="v-bio">Bio</label><textarea id="v-bio" v-model="form.bio"></textarea></div>
+            <div><input id="v-agree" type="checkbox" v-model="form.agree" /><label for="v-agree">Setuju</label></div>
+            <button type="submit">Kirim</button>
+            <div id="result" v-if="done">{{ done }}</div>
+          </form>`,
+      }).mount('#app');
+    </script>
+  </body>
+</html>

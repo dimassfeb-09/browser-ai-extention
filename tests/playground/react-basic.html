@@ -1,0 +1,55 @@
+<!doctype html>
+<!-- Real React 18 controlled form: every field is controlled state,
+     labels are separate <label htmlFor> elements (the hard case). -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — React basic form</title></head>
+  <body>
+    <h1>React — Registration</h1>
+    <div id="root"></div>
+    <script src="/vendor/react.js"></script>
+    <script src="/vendor/react-dom.js"></script>
+    <script>
+      const { useState } = React;
+      const e = React.createElement;
+      function App() {
+        const [form, setForm] = useState({ name: '', email: '', country: '', agree: false, bio: '' });
+        const [result, setResult] = useState('');
+        const set = (k) => (ev) =>
+          setForm((f) => ({ ...f, [k]: ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value }));
+        return e(
+          'form',
+          {
+            onSubmit: (ev) => {
+              ev.preventDefault();
+              setResult(
+                `OK name=${form.name} email=${form.email} country=${form.country} agree=${form.agree ? 'yes' : 'no'} bio=${form.bio}`,
+              );
+            },
+          },
+          e('div', null,
+            e('label', { htmlFor: 'r-name' }, 'Nama Lengkap'),
+            e('input', { id: 'r-name', type: 'text', value: form.name, onChange: set('name') })),
+          e('div', null,
+            e('label', { htmlFor: 'r-email' }, 'Email'),
+            e('input', { id: 'r-email', type: 'email', value: form.email, onChange: set('email') })),
+          e('div', null,
+            e('label', { htmlFor: 'r-country' }, 'Negara'),
+            e('select', { id: 'r-country', value: form.country, onChange: set('country') },
+              e('option', { value: '' }, 'Pilih negara'),
+              e('option', { value: 'ID' }, 'Indonesia'),
+              e('option', { value: 'MY' }, 'Malaysia'),
+              e('option', { value: 'SG' }, 'Singapura'))),
+          e('div', null,
+            e('label', { htmlFor: 'r-bio' }, 'Bio'),
+            e('textarea', { id: 'r-bio', value: form.bio, onChange: set('bio') })),
+          e('div', null,
+            e('input', { id: 'r-agree', type: 'checkbox', checked: form.agree, onChange: set('agree') }),
+            e('label', { htmlFor: 'r-agree' }, 'Setuju syarat dan ketentuan')),
+          e('button', { type: 'submit' }, 'Daftar'),
+          result ? e('div', { id: 'result' }, result) : null,
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+    </script>
+  </body>
+</html>

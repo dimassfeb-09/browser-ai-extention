@@ -1,0 +1,52 @@
+<!doctype html>
+<!-- Canvas-rendered form: NO DOM inputs at all. Fields are pixels; the
+     widget tracks focus by click coordinates and reads keydown events.
+     Layout: Nama field y≈35–75, Email field y≈115–155 (offsets inside
+     the canvas element, 640×200). -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — Canvas form</title></head>
+  <body>
+    <h1>Canvas form</h1>
+    <canvas id="cv" width="640" height="200" tabindex="0" aria-label="Form Canvas"></canvas>
+    <div><button id="simpan" type="button">Simpan Canvas</button></div>
+    <div id="result"></div>
+    <script>
+      const cv = document.getElementById('cv');
+      const ctx = cv.getContext('2d');
+      const state = { focus: null, nama: '', email: '' };
+      const FIELDS = [
+        { key: 'nama', label: 'Nama', y: 35, h: 40 },
+        { key: 'email', label: 'Email', y: 115, h: 40 },
+      ];
+      function draw() {
+        ctx.clearRect(0, 0, 640, 200);
+        ctx.font = '14px sans-serif';
+        for (const f of FIELDS) {
+          ctx.fillStyle = '#000';
+          ctx.fillText(f.label, 10, f.y - 8);
+          ctx.strokeStyle = state.focus === f.key ? '#06c' : '#999';
+          ctx.lineWidth = state.focus === f.key ? 2 : 1;
+          ctx.strokeRect(10, f.y, 400, f.h);
+          ctx.fillText(state[f.key], 16, f.y + 25);
+        }
+      }
+      cv.addEventListener('click', (ev) => {
+        const rect = cv.getBoundingClientRect();
+        const y = ev.clientY - rect.top;
+        const f = FIELDS.find((fld) => y >= fld.y && y <= fld.y + fld.h);
+        state.focus = f ? f.key : null;
+        draw();
+      });
+      cv.addEventListener('keydown', (ev) => {
+        if (!state.focus) return;
+        if (ev.key === 'Backspace') state[state.focus] = state[state.focus].slice(0, -1);
+        else if (ev.key.length === 1) state[state.focus] += ev.key;
+        draw();
+      });
+      document.getElementById('simpan').addEventListener('click', () => {
+        document.getElementById('result').textContent = `CANVAS OK nama=${state.nama} email=${state.email}`;
+      });
+      draw();
+    </script>
+  </body>
+</html>

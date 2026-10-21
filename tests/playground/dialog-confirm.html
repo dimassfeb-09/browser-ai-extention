@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- Custom confirmation dialog (SweetAlert-style DOM overlay) gating a
+     destructive action: Hapus → "Yakin?" → Ya, Hapus. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — Confirm dialog</title>
+    <style>.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45)}.box{background:#fff;margin:15vh auto;padding:16px;width:320px}</style>
+  </head>
+  <body>
+    <h1>Konfirmasi hapus</h1>
+    <ul id="list"><li>Data Toll A <button id="hapus" type="button">Hapus</button></li></ul>
+    <div class="overlay" id="overlay" hidden>
+      <div class="box">
+        <p>Yakin hapus Data Toll A?</p>
+        <button id="ya" type="button">Ya, Hapus</button>
+        <button id="tidak" type="button">Batal</button>
+      </div>
+    </div>
+    <div id="result"></div>
+    <script>
+      const overlay = document.getElementById('overlay');
+      document.getElementById('hapus').addEventListener('click', () => (overlay.hidden = false));
+      document.getElementById('tidak').addEventListener('click', () => (overlay.hidden = true));
+      document.getElementById('ya').addEventListener('click', () => {
+        document.getElementById('list').innerHTML = '<li>Tidak ada data</li>';
+        document.getElementById('result').textContent = 'Terhapus: Data Toll A';
+        overlay.hidden = true;
+      });
+    </script>
+  </body>
+</html>

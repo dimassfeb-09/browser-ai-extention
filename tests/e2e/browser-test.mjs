@@ -47,7 +47,7 @@ function fakeDecision(userContent) {
   }
   const emailLine = userContent
     .split('\n')
-    .find((l) => l.includes('<input>') && l.includes('you@example.com'));
+    .find((l) => l.includes('<input') && l.includes('you@example.com'));
   const emailIndex = emailLine ? Number(emailLine.match(/\[(\d+)\]/)[1]) : null;
   if (emailLine && emailLine.includes('value="test@example.com"')) {
     const btnLine = userContent
@@ -223,14 +223,14 @@ try {
     [...document.querySelectorAll('button')].find((b) => b.textContent === 'Send')?.click();
   });
   try {
-    await panel.waitForFunction(() => document.body.innerText.includes('done —'), { timeout: 30_000 });
+    await panel.waitForFunction(() => document.body.innerText.includes('Email filled and subscribed.'), { timeout: 30_000 });
   } catch {
     const dump = await panel.evaluate(() => document.body.innerText);
     console.log('PANEL DUMP ON TIMEOUT:\n' + dump);
     throw new Error('UI run did not reach done in 30s');
   }
   const panelText = await panel.evaluate(() => document.body.innerText);
-  check('B UI run finished with status done', panelText.includes('done — Email filled and subscribed.'));
+  check('B UI run finished (summary bubble, no status bar)', panelText.includes('Email filled and subscribed.') && !panelText.includes('done —'));
   const finalState = await pageD.evaluate(() => document.getElementById('state').textContent);
   check('B page actually subscribed via the agent loop', finalState === 'subscribed:test@example.com', `state=${finalState}`);
 

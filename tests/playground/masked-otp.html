@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- Masked inputs (phone + Rupiah currency, reformatted on every input
+     event) and an OTP of six maxlength=1 boxes with auto-advance. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — Masked + OTP</title>
+    <style>.otp input{width:28px;text-align:center;margin-right:4px}</style>
+  </head>
+  <body>
+    <h1>Masked input & OTP</h1>
+    <div><label for="tel">Telepon</label><input id="tel" type="tel" /></div>
+    <div><label for="rp">Nominal</label><span>Rp</span><input id="rp" type="text" /></div>
+    <div class="otp" id="otp">
+      <span>Kode OTP</span>
+      <input type="text" maxlength="1" aria-label="OTP 1" />
+      <input type="text" maxlength="1" aria-label="OTP 2" />
+      <input type="text" maxlength="1" aria-label="OTP 3" />
+      <input type="text" maxlength="1" aria-label="OTP 4" />
+      <input type="text" maxlength="1" aria-label="OTP 5" />
+      <input type="text" maxlength="1" aria-label="OTP 6" />
+    </div>
+    <button id="cek" type="button">Cek</button>
+    <div id="result"></div>
+    <script>
+      const tel = document.getElementById('tel');
+      tel.addEventListener('input', () => {
+        const d = tel.value.replace(/\D/g, '').slice(0, 13);
+        const parts = [d.slice(0, 4), d.slice(4, 8), d.slice(8)].filter(Boolean);
+        tel.value = parts.join('-');
+      });
+      const rp = document.getElementById('rp');
+      rp.addEventListener('input', () => {
+        const d = rp.value.replace(/\D/g, '');
+        rp.value = d.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        rp.dataset.raw = d;
+      });
+      const boxes = Array.from(document.querySelectorAll('#otp input'));
+      boxes.forEach((box, i) => {
+        box.addEventListener('input', () => {
+          if (box.value && i < boxes.length - 1) boxes[i + 1].focus();
+        });
+      });
+      document.getElementById('cek').addEventListener('click', () => {
+        const otp = boxes.map((b) => b.value).join('');
+        document.getElementById('result').textContent =
+          `MASK OK tel=${tel.value} rp=${rp.dataset.raw || ''} display=${rp.value} otp=${otp} ${otp === '123456' ? 'OTP-VALID' : 'OTP-SALAH'}`;
+      });
+    </script>
+  </body>
+</html>

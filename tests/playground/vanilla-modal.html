@@ -1,0 +1,38 @@
+<!doctype html>
+<!-- Vanilla modal form; every field named by a separate <label for>. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Playground — Vanilla modal form</title>
+    <style>.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4)}.modal{background:#fff;margin:10vh auto;padding:16px;width:320px}</style>
+  </head>
+  <body>
+    <h1>Vanilla — Modal form</h1>
+    <button id="buka" type="button">Buka Form</button>
+    <div class="overlay" id="overlay" hidden>
+      <div class="modal">
+        <div><label for="f-nama">Nama</label><input id="f-nama" type="text" /></div>
+        <div><label for="f-email">Email</label><input id="f-email" type="email" /></div>
+        <div><label for="f-kota">Kota</label>
+          <select id="f-kota">
+            <option value="">Pilih kota</option>
+            <option value="JKT">Jakarta</option>
+            <option value="SMG">Semarang</option>
+          </select></div>
+        <button id="simpan" type="button">Simpan</button>
+        <button id="tutup" type="button">Tutup</button>
+      </div>
+    </div>
+    <div id="result"></div>
+    <script>
+      const overlay = document.getElementById('overlay');
+      document.getElementById('buka').addEventListener('click', () => (overlay.hidden = false));
+      document.getElementById('tutup').addEventListener('click', () => (overlay.hidden = true));
+      document.getElementById('simpan').addEventListener('click', () => {
+        const nama = document.getElementById('f-nama').value;
+        const email = document.getElementById('f-email').value;
+        const kota = document.getElementById('f-kota').value;
+        document.getElementById('result').textContent = `OK nama=${nama} email=${email} kota=${kota}`;
+        overlay.hidden = true;
+      });
+    </script>
+  </body>
+</html>
