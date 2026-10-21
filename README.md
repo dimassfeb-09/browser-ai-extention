@@ -48,6 +48,12 @@ above that works on plain JSON and is unit-testable without a browser.
   of burning tokens.
 - **Shadow DOM** — the collector walks open shadow roots.
 - **Human handoff** — `ask_user` pauses the run for captcha/OTP/payment.
+- **Step budget** — configurable per run in Settings ("Max steps per
+  run", default 100, 0 = no limit). Long runs get a checkpoint notice
+  every 25 steps instead of a surprise stop, and hitting the budget
+  reports the progress made. The stuck/repetition guards and the Stop
+  button apply at any budget. Observations wait for the DOM to settle
+  (~250 ms polls) so mid-render snapshots stop producing stale indices.
 - **Conversation memory** — every run receives the chat's earlier goals
   plus the agent's own results and action digests ("Conversation so
   far"), so follow-ups like "how many did you add?" are answered from

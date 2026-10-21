@@ -141,6 +141,45 @@ describe('runAgent', () => {
     expect(notices[2]).toContain('did NOT change');
   });
 
+  it('emits a budget checkpoint notice every 25 steps on long runs', async () => {
+    const notices: Array<string | undefined> = [];
+    let calls = 0;
+    const llm: LlmClient = {
+      nextAction: async (input) => {
+        notices.push(input.notice);
+        calls++;
+        if (calls > 26) return { type: 'done', summary: 'long task done' };
+        // Alternate actions: 26 identical clicks in a row would (rightly)
+        // trip the repetition guard long before the checkpoint.
+        return calls % 2 === 1
+          ? { type: 'click', index: 0 }
+          : { type: 'scroll', direction: 'down', amount: 400 };
+      },
+    };
+    const result = await runAgent('tugas panjang multi-bagian', {
+      driver: new FakeDriver(),
+      llm,
+      clock: fakeClock,
+      maxSteps: 100,
+    });
+    expect(result.status).toBe('done');
+    expect(notices.some((n) => n?.includes('Checkpoint: 25 steps used'))).toBe(true);
+  });
+
+  it('max_steps summary reports the progress made, not a bare limit message', async () => {
+    const result = await runAgent('tidak selesai', {
+      driver: new FakeDriver(),
+      llm: new ScriptedLlm(
+        Array.from({ length: 10 }, () => ({ type: 'click', index: 0 }) as Action),
+      ),
+      clock: fakeClock,
+      maxSteps: 3,
+    });
+    expect(result.status).toBe('max_steps');
+    expect(result.summary).toContain('Progress so far: 3 actions');
+    expect(result.summary).toContain('Max steps per run');
+  });
+
   it('passes the conversation history through to the LLM (cross-run memory)', async () => {
     const seen: Array<unknown> = [];
     const llm: LlmClient = {

@@ -4,6 +4,9 @@ export interface Settings {
   apiKey: string;
   model: string;
   baseURL: string;
+  /** Step budget per run. 0 = no limit (stuck/repetition guards and the
+   *  Stop button still apply). Multi-part goals need ~8 steps per part. */
+  maxSteps: number;
 }
 
 const KEY = 'waa:settings';
@@ -12,6 +15,7 @@ export const defaultSettings: Settings = {
   apiKey: '',
   model: 'gpt-4o-mini',
   baseURL: 'https://api.openai.com/v1',
+  maxSteps: 100,
 };
 
 export async function loadSettings(): Promise<Settings> {

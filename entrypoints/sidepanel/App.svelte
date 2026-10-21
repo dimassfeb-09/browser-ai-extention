@@ -218,6 +218,7 @@
         llm,
         signal,
         conversation,
+        maxSteps: settings.maxSteps > 0 ? settings.maxSteps : 100_000,
         logger: {
           log: (event, data) => {
             steps.push(`${event}: ${JSON.stringify(data ?? '')?.slice(0, 240) ?? ''}`);
@@ -452,6 +453,10 @@
       <label class="field">
         <span>Base URL</span>
         <input type="text" bind:value={settings.baseURL} placeholder="https://.../v1beta/openai" />
+      </label>
+      <label class="field">
+        <span>Max steps per run (0 = no limit)</span>
+        <input type="number" bind:value={settings.maxSteps} min="0" step="1" />
       </label>
       <div class="modal-actions">
         <button class="btn primary" onclick={saveSettingsNow}>Save</button>

@@ -94,6 +94,15 @@ export async function runAgent(goal: string, deps: AgentDeps): Promise<AgentRunR
         `The page did NOT change after the previous action (unchanged ${unchanged}x in a row). That action had no visible effect — do NOT repeat it. Choose a different element or a different strategy (scroll, wait for loading, click the parent/menu item first), or finish with done/ask_user if appropriate.`,
       );
     }
+    if (step > 1 && (step - 1) % 25 === 0) {
+      // Long multi-part goals (e.g. one record per menu) legitimately
+      // need many steps. A periodic checkpoint keeps the model aware of
+      // the budget and of not redoing finished parts, without the hard
+      // stop being the first time it hears about limits.
+      notices.push(
+        `Checkpoint: ${step - 1} steps used in this run (budget: ${maxSteps >= 100_000 ? 'no limit set' : `${maxSteps} steps`}). Check the goal: which parts are already verifiably complete? Do not redo completed parts. If everything is done, finish with done now.`,
+      );
+    }
     if (prevUrl !== null && snapshot.url !== prevUrl) {
       // Navigation right after acting usually means a submit/save went
       // through. Without this milestone the model cheerfully starts the
@@ -165,9 +174,16 @@ export async function runAgent(goal: string, deps: AgentDeps): Promise<AgentRunR
     logger.log('act-result', { step, result: record.result });
   }
 
+  const counts = new Map<string, number>();
+  for (const h of history) counts.set(h.action.type, (counts.get(h.action.type) ?? 0) + 1);
+  const digest = [...counts.entries()].map(([t, n]) => `${n} ${t}`).join(', ');
+  const lastActions = history.slice(-5).map((h) => describeAction(h.action)).join('; ');
   return {
     status: 'max_steps',
-    summary: `Reached the ${maxSteps}-step limit without finishing.`,
+    summary:
+      `Stopped at the ${maxSteps}-step limit without a done from the model. ` +
+      `Progress so far: ${history.length} actions (${digest}). Last actions: ${lastActions}. ` +
+      `Raise "Max steps per run" in Settings, or split the goal into smaller parts.`,
     history,
   };
 }

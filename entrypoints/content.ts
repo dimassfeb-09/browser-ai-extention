@@ -163,6 +163,33 @@ function observe(): PageSnapshot {
   };
 }
 
+function stabilityKey(s: PageSnapshot): string {
+  return `${s.url}:${s.elements.length}:${s.text.length}:${s.elements.map((e) => e.label).join('|')}`;
+}
+
+/**
+ * Observe, but wait until the page stops changing first. SPAs render in
+ * waves after navigation/clicks; a snapshot taken mid-render hands the
+ * model indices that do not exist yet by the time it acts on them (the
+ * field log's recurring "No element at index 15 — re-observe" right
+ * after every menu navigation). Poll every 250 ms until two consecutive
+ * snapshots agree, capped at ~1.5 s so live pages never hang the loop.
+ */
+async function observeStable(): Promise<PageSnapshot> {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  let snap = observe();
+  let key = stabilityKey(snap);
+  for (let i = 0; i < 6; i++) {
+    await sleep(250);
+    const next = observe();
+    const nextKey = stabilityKey(next);
+    snap = next;
+    if (nextKey === key) break;
+    key = nextKey;
+  }
+  return snap;
+}
+
 /** The React/Vue-proof value setter: use the prototype's native setter so
  *  React's per-element value tracker is bypassed, then fire input/change. */
 function nativeSetValue(el: HTMLInputElement | HTMLTextAreaElement, text: string): void {
@@ -345,17 +372,27 @@ export default defineContentScript({
   main() {
     browser.runtime.onMessage.addListener(
       (message: ContentRequest, _sender, sendResponse: (r: ContentResponse) => void) => {
-        try {
-          if (message.kind === 'waa:observe') {
-            sendResponse({ kind: 'waa:snapshot', snapshot: observe() });
-          } else if (message.kind === 'waa:act') {
-            sendResponse({ kind: 'waa:act-result', result: act(message.action) });
+        if (message.kind === 'waa:observe') {
+          // Async: observe waits for the DOM to settle (see observeStable).
+          void observeStable()
+            .then((snapshot) => sendResponse({ kind: 'waa:snapshot', snapshot }))
+            .catch((err: unknown) =>
+              sendResponse({
+                kind: 'waa:error',
+                message: err instanceof Error ? err.message : String(err),
+              }),
+            );
+        } else {
+          try {
+            if (message.kind === 'waa:act') {
+              sendResponse({ kind: 'waa:act-result', result: act(message.action) });
+            }
+          } catch (err) {
+            sendResponse({
+              kind: 'waa:error',
+              message: err instanceof Error ? err.message : String(err),
+            });
           }
-        } catch (err) {
-          sendResponse({
-            kind: 'waa:error',
-            message: err instanceof Error ? err.message : String(err),
-          });
         }
         return true;
       },
