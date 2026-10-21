@@ -73,4 +73,31 @@ export class ChatCompletionsClient implements LlmClient {
     }
     throw new Error('OpenAI response had neither a tool call nor content.');
   }
+
+  /** Plain completion without tools — used by /compact to summarize a
+   *  chat's history into a brief the agent can carry forward. */
+  async summarize(system: string, user: string): Promise<string> {
+    const res = await this.fetchFn(`${this.baseURL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.config.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.config.model,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`OpenAI HTTP ${res.status}: ${body.slice(0, 300)}`);
+    }
+    const data = (await res.json()) as ChatCompletionResponse;
+    const content = data.choices?.[0]?.message?.content?.trim();
+    if (!content) throw new Error('Summarize failed: the model returned an empty response.');
+    return content;
+  }
 }

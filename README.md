@@ -52,6 +52,19 @@ above that works on plain JSON and is unit-testable without a browser.
   pressed Send. Switch tabs or windows freely while it works; the agent
   will not follow you. If you close the target tab, the run errors out
   instead of jumping to another tab.
+- **Per-tab panel & chats** — the side panel itself is per tab too:
+  the background script keeps it disabled by default and enables it
+  only for the tab where you click the toolbar icon, so it never
+  follows you to other tabs. Each tab also owns its chat session —
+  the panel shows the chat of the tab you're looking at, and switching
+  tabs switches chats (all sessions stay in the shared history, and
+  opening one from history binds it to the current tab).
+- **Slash commands** — handled locally in the panel, never sent to the
+  page agent: `/help`, `/new`, `/reset` (wipe this chat, keep the
+  session), `/clear`, `/compact` (fold the chat so far into an
+  LLM-written summary the agent keeps as its memory), `/stop`,
+  `/retry`, `/model <name>`, `/settings`, `/export` (download the chat
+  as Markdown). Typing `/` shows a suggestion menu.
 - **Step budget** — configurable per run in Settings ("Max steps per
   run", default 100, 0 = no limit). Long runs get a checkpoint notice
   every 25 steps instead of a surprise stop, and hitting the budget

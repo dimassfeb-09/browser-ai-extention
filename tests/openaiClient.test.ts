@@ -75,4 +75,26 @@ describe('ChatCompletionsClient', () => {
       'sk-super-secret',
     );
   });
+
+  it('summarize returns the plain content of a tool-less completion', async () => {
+    const client = new ChatCompletionsClient({
+      apiKey: 'sk-test',
+      model: 'gpt-4o-mini',
+      fetchFn: fakeFetchReturning({
+        choices: [{ message: { content: '  Ringkasan: user subscribe, berhasil.  ' } }],
+      }),
+    });
+    await expect(client.summarize('sys', 'USER: …')).resolves.toBe(
+      'Ringkasan: user subscribe, berhasil.',
+    );
+  });
+
+  it('summarize throws on an empty completion', async () => {
+    const client = new ChatCompletionsClient({
+      apiKey: 'sk-test',
+      model: 'gpt-4o-mini',
+      fetchFn: fakeFetchReturning({ choices: [{ message: { content: ' ' } }] }),
+    });
+    await expect(client.summarize('sys', 'x')).rejects.toThrow('empty response');
+  });
 });

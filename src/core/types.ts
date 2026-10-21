@@ -100,24 +100,38 @@ export interface ChatMessage {
   status?: AgentStatus;
   /** Step log lines of the run, rendered collapsed inside the bubble. */
   steps?: string[];
+  /** Local UI notice (slash-command feedback): rendered in the chat but
+   *  NEVER handed to the model as conversation history. */
+  local?: boolean;
 }
 
 export interface ChatSession {
   id: string;
   /** Window that created this session (informational; any window may open it). */
   windowId: number;
+  /** Tab that created this session (informational; sessions are bound
+   *  to tabs via ChatState.byTab, and any tab may open any session). */
+  tabId?: number;
   title: string;
   createdAt: number;
   updatedAt: number;
   messages: ChatMessage[];
+  /** Set by /compact: an LLM-written summary of everything up to
+   *  `compactCutoff`. buildConversation hands the model this summary
+   *  instead of the folded messages. */
+  compactSummary?: string;
+  /** `ts` of the last message folded into `compactSummary`. */
+  compactCutoff?: number;
 }
 
 /**
- * Whole chat state. `byWindow` is the per-window session binding:
- * each browser window resumes its OWN active session, a new window
- * starts a fresh one — while every session stays in the shared history.
+ * Whole chat state. `byTab` is the per-TAB session binding: each tab
+ * resumes its OWN active session, a new tab starts a fresh one — while
+ * every session stays in the shared history. (Was per-window until the
+ * per-tab panel change; the store migrates old states by dropping the
+ * old bindings and keeping the sessions.)
  */
 export interface ChatState {
   sessions: ChatSession[];
-  byWindow: Record<number, string>;
+  byTab: Record<number, string>;
 }

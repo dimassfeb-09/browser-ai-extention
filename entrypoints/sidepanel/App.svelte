@@ -7,22 +7,34 @@
     defaultSettings,
     type Settings,
   } from '../../src/adapters/chrome/settings';
-  import { ChromeChatStore, getCurrentWindowId } from '../../src/adapters/chrome/chatStore';
+  import {
+    ChromeChatStore,
+    getActiveTabId,
+    getCurrentWindowId,
+  } from '../../src/adapters/chrome/chatStore';
   import { TabContentDriver } from '../../src/adapters/chrome/contentDriver';
   import { ChatCompletionsClient } from '../../src/adapters/openai/client';
-  import { describeAction, runAgent } from '../../src/core/agentLoop';
+  import { runAgent } from '../../src/core/agentLoop';
   import {
     activeSession,
     addMessage,
+    buildConversation,
+    clearSession,
     emptyChatState,
-    ensureWindowSession,
+    ensureTabSession,
     removeSession,
     setActiveSession,
     sortedSessions,
     startNewSession,
     upsertSession,
   } from '../../src/core/chat';
-  import type { ChatMessage, ChatState, ConversationTurn } from '../../src/core/types';
+  import {
+    formatHelp,
+    matchSlashCommands,
+    parseSlashCommand,
+    type ParsedSlashCommand,
+  } from '../../src/core/commands';
+  import type { ChatMessage, ChatState } from '../../src/core/types';
 
   const store = new ChromeChatStore();
   const uid = () =>
@@ -33,6 +45,9 @@
   let settings = $state<Settings>({ ...defaultSettings });
   let chatState = $state<ChatState>(emptyChatState());
   let windowId = $state(-1);
+  /** Active tab of this window — the session binding key. The panel
+   *  view follows it (see the onActivated listener in onMount). */
+  let tabId = $state(-1);
   let draft = $state('');
   let running = $state(false);
   let showHistory = $state(false);
@@ -40,10 +55,19 @@
   let models = $state<string[]>([]);
   let modelsLoading = $state(false);
   let modelsError = $state('');
+  let compacting = $state(false);
+
+  /** Commands matching what is being typed in the composer (shown as a
+   *  suggestion menu while the draft is a bare '/…'). */
+  let slashMatches = $derived(
+    draft.trimStart().startsWith('/') && !draft.trim().includes(' ')
+      ? matchSlashCommands(draft.trim())
+      : [],
+  );
   let messagesEl: HTMLElement | undefined = $state();
   const signal = { aborted: false };
 
-  let current = $derived(activeSession(chatState, windowId));
+  let current = $derived(activeSession(chatState, tabId));
   let history = $derived(sortedSessions(chatState));
 
   async function persist() {
@@ -58,20 +82,32 @@
   onMount(async () => {
     settings = await loadSettings();
     windowId = await getCurrentWindowId();
+    tabId = await getActiveTabId(windowId);
     const loaded = await store.load();
-    chatState = ensureWindowSession(loaded, windowId, uid(), Date.now());
+    chatState = ensureTabSession(loaded, windowId, tabId, uid(), Date.now());
     await persist();
     await scrollToBottom();
+    // Follow the active tab: each tab has its own chat, and the panel
+    // (visible only on tabs where it was enabled) shows the chat of
+    // the tab the user is looking at. A run in progress keeps updating
+    // its own session by id in the background.
+    browser.tabs.onActivated.addListener((info) => {
+      if (info.windowId !== windowId || info.tabId === tabId) return;
+      tabId = info.tabId;
+      chatState = ensureTabSession(chatState, windowId, tabId, uid(), Date.now());
+      void persist();
+      void scrollToBottom();
+    });
   });
 
   async function newChat() {
-    chatState = startNewSession(chatState, windowId, uid(), Date.now());
+    chatState = startNewSession(chatState, windowId, tabId, uid(), Date.now());
     showHistory = false;
     await persist();
   }
 
   async function openSession(id: string) {
-    chatState = setActiveSession(chatState, windowId, id);
+    chatState = setActiveSession(chatState, tabId, id);
     showHistory = false;
     await persist();
     await scrollToBottom();
@@ -79,13 +115,13 @@
 
   async function deleteSession(id: string) {
     chatState = removeSession(chatState, id);
-    chatState = ensureWindowSession(chatState, windowId, uid(), Date.now());
+    chatState = ensureTabSession(chatState, windowId, tabId, uid(), Date.now());
     await persist();
   }
 
   async function clearCurrentChat() {
     if (!current) return;
-    chatState = upsertSession(chatState, { ...current, messages: [], title: 'New chat', updatedAt: Date.now() });
+    chatState = upsertSession(chatState, clearSession(current, Date.now()));
     await persist();
     await scrollToBottom();
   }
@@ -96,7 +132,7 @@
   }
 
   async function clearAllHistory() {
-    chatState = ensureWindowSession(emptyChatState(), windowId, uid(), Date.now());
+    chatState = ensureTabSession(emptyChatState(), windowId, tabId, uid(), Date.now());
     await persist();
     showHistory = false;
   }
@@ -131,62 +167,178 @@
     showSettings = false;
   }
 
-  /** Compact digest of what a finished run actually DID, extracted from
-   *  its step log — summaries alone can under-report (one run may save
-   *  several records), and the model needs the actions to answer
-   *  follow-ups like "how many did you add?" truthfully. */
-  function actionsDigest(steps: string[]): string {
-    const parts: string[] = [];
-    for (const line of steps) {
-      if (!line.startsWith('action: ')) continue;
-      try {
-        const parsed = JSON.parse(line.slice('action: '.length)) as {
-          action?: Parameters<typeof describeAction>[0];
-        };
-        const a = parsed.action;
-        if (!a || a.type === 'done' || a.type === 'ask_user') continue;
-        parts.push(
-          a.type === 'type'
-            ? `${describeAction(a)} ${JSON.stringify((a as { text: string }).text.slice(0, 40))}`
-            : describeAction(a),
-        );
-      } catch {
-        // A truncated log line is not worth failing the send over.
-      }
-      if (parts.length >= 15) break;
-    }
-    return parts.join('; ');
+  /** Append a local UI notice to the chat (slash-command feedback).
+   *  Local messages render like assistant bubbles but are never handed
+   *  to the model as conversation history. */
+  async function notice(text: string) {
+    if (!current) return;
+    const msg: ChatMessage = { id: uid(), role: 'assistant', content: text, ts: Date.now(), local: true };
+    chatState = upsertSession(chatState, addMessage(current, msg));
+    await persist();
+    await scrollToBottom();
   }
 
-  /** Earlier exchanges of THIS chat, handed to the next run so the model
-   *  remembers its own previous goals, results and actions. */
-  function buildConversation(): ConversationTurn[] {
-    const turns: ConversationTurn[] = [];
-    for (const m of current?.messages ?? []) {
-      if (m.role === 'user') {
-        turns.push({ role: 'user', content: m.content.slice(0, 500) });
-      } else if (m.role === 'assistant' && m.content && m.content !== 'Working on it…') {
-        const digest = actionsDigest(m.steps ?? []);
-        const content =
-          (m.status ? `(${m.status}) ` : '') +
-          m.content.slice(0, 600) +
-          (digest ? `\nActions taken: ${digest}` : '');
-        turns.push({ role: 'assistant', content });
-      }
+  const COMPACT_SYSTEM = [
+    'You compress conversation histories for a web-automation agent.',
+    'Write a compact brief (max ~200 words, plain text) that preserves:',
+    '- every goal the user gave, in order;',
+    '- what the agent actually did and the concrete values it used or created (names, codes, amounts);',
+    '- each outcome (done/failed/stuck) and any record identifiers;',
+    '- anything still pending or explicitly promised.',
+    'Drop filler and step-by-step detail. The agent will rely on this brief as its only memory of the folded turns.',
+  ].join('\n');
+
+  async function doCompact() {
+    if (!current) return;
+    if (!settings.apiKey) {
+      showSettings = true;
+      return;
     }
-    return turns.slice(-8);
+    if (compacting) return;
+    const session = current;
+    const cutoff = session.compactCutoff ?? 0;
+    const folded = session.messages.filter((m) => m.ts > cutoff && !m.local);
+    if (folded.length < 2) {
+      await notice('Nothing to compact yet — this chat is still short. /compact folds older turns once a conversation has built up.');
+      return;
+    }
+    compacting = true;
+    try {
+      const turns = buildConversation(session);
+      const rendered = turns
+        .map((t) => `${t.role === 'user' ? 'USER' : 'YOU'}: ${t.content}`)
+        .join('\n');
+      const llm = new ChatCompletionsClient({
+        apiKey: settings.apiKey,
+        model: settings.model,
+        baseURL: settings.baseURL,
+      });
+      const summary = await llm.summarize(COMPACT_SYSTEM, rendered);
+      const lastTs = Math.max(...session.messages.map((m) => m.ts));
+      chatState = upsertSession(chatState, {
+        ...session,
+        compactSummary: summary,
+        compactCutoff: lastTs,
+        updatedAt: Date.now(),
+      });
+      await persist();
+      await notice(
+        `Compacted ${folded.length} messages into a summary. Future runs carry this brief instead of the full history:\n\n${summary}`,
+      );
+    } catch (err) {
+      await notice(`Compact failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      compacting = false;
+    }
   }
 
-  async function send() {
-    const goal = draft.trim();
-    if (!goal || running) return;
+  function exportChat() {
+    if (!current) return;
+    const lines: string[] = [`# ${current.title}`, '', `Exported ${new Date().toLocaleString()}`, ''];
+    for (const m of current.messages) {
+      if (m.local) continue;
+      lines.push(
+        `## ${m.role === 'user' ? 'User' : 'Assistant'}${m.status ? ` (${m.status})` : ''} — ${new Date(m.ts).toLocaleString()}`,
+        '',
+        m.content,
+        '',
+      );
+      if (m.steps?.length) lines.push(`Steps (${m.steps.length}):`, '', '```', ...m.steps, '```', '');
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat-${current.title.replace(/[^\w-]+/g, '-').slice(0, 40) || 'export'}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    void notice('Chat exported as a Markdown file.');
+  }
+
+  /** Slash commands run locally in the panel — they never reach the
+   *  model as a goal. Everything except /stop and /help waits until no
+   *  task is running. */
+  async function runSlashCommand(cmd: ParsedSlashCommand) {
+    if (running && cmd.name !== 'stop' && cmd.name !== 'help') {
+      await notice('A task is running — /stop it first, then run the command.');
+      return;
+    }
+    switch (cmd.name) {
+      case 'help':
+        await notice(formatHelp());
+        break;
+      case 'stop':
+        if (running) {
+          stop();
+          await notice('Stopping the current run…');
+        } else {
+          await notice('Nothing is running right now.');
+        }
+        break;
+      case 'new':
+        await newChat();
+        await notice('New chat started. Earlier chats live in History.');
+        break;
+      case 'reset':
+      case 'clear': {
+        if (!current) return;
+        chatState = upsertSession(chatState, clearSession(current, Date.now()));
+        await persist();
+        await notice('Chat cleared — all messages and the agent memory for this chat are gone. The session itself stays in History.');
+        break;
+      }
+      case 'compact':
+        await doCompact();
+        break;
+      case 'retry': {
+        const last = [...(current?.messages ?? [])]
+          .reverse()
+          .find((m) => m.role === 'user' && !m.local);
+        if (!last) await notice('Nothing to retry yet — no goal has been sent in this chat.');
+        else await send(last.content);
+        break;
+      }
+      case 'model':
+        if (!cmd.arg) {
+          await notice(
+            `Current model: ${settings.model}\nBase URL: ${settings.baseURL}\nMax steps per run: ${settings.maxSteps === 0 ? 'no limit' : settings.maxSteps}\n\nSwitch with /model <name> — applies from the next run.`,
+          );
+        } else {
+          settings.model = cmd.arg;
+          await saveSettings(settings);
+          await notice(`Model switched to "${cmd.arg}". Applies from the next run.`);
+        }
+        break;
+      case 'settings':
+        showSettings = true;
+        break;
+      case 'export':
+        exportChat();
+        break;
+    }
+  }
+
+  async function send(preset?: string) {
+    const goal = (preset ?? draft).trim();
+    if (!goal) return;
+    if (goal.startsWith('/')) {
+      const cmd = parseSlashCommand(goal);
+      draft = '';
+      if (!cmd || !cmd.known) {
+        await notice(`Unknown command "${goal.split(' ')[0]}" — type /help for the list.`);
+        return;
+      }
+      await runSlashCommand(cmd);
+      return;
+    }
+    if (running) return;
     if (!settings.apiKey) {
       showSettings = true;
       return;
     }
     if (!current) return;
     draft = '';
-    const conversation = buildConversation();
+    const conversation = buildConversation(current);
     await saveSettings(settings);
 
     const now = Date.now();
@@ -236,7 +388,7 @@
         logger: {
           log: (event, data) => {
             steps.push(`${event}: ${JSON.stringify(data ?? '')?.slice(0, 240) ?? ''}`);
-            const live = activeSession(chatState, windowId);
+            const live = activeSession(chatState, tabId);
             if (live) {
               const msgs = live.messages.map((m) =>
                 m.id === draftMsg.id ? { ...m, steps: [...steps] } : m,
@@ -247,7 +399,7 @@
           },
         },
       });
-      const live = activeSession(chatState, windowId);
+      const live = activeSession(chatState, tabId);
       if (live) {
         const msgs = live.messages.map((m) =>
           m.id === draftMsg.id
@@ -261,7 +413,7 @@
       // No status bar above the composer: failures surface inside the
       // assistant bubble itself, like a normal chat reply.
       const message = err instanceof Error ? err.message : String(err);
-      const live = activeSession(chatState, windowId);
+      const live = activeSession(chatState, tabId);
       if (live) {
         const msgs = live.messages.map((m) =>
           m.id === draftMsg.id
@@ -371,6 +523,22 @@
   </div>
 
   <div class="inputbar">
+    {#if slashMatches.length > 0}
+      <div class="slash-menu" data-testid="slash-menu">
+        {#each slashMatches as c}
+          <button
+            class="slash-item"
+            onclick={() => {
+              draft = c.takesArg ? `/${c.name} ` : `/${c.name}`;
+              document.getElementById('input')?.focus();
+            }}
+          >
+            <span class="slash-usage">{c.usage}</span>
+            <span class="slash-desc">{c.description}</span>
+          </button>
+        {/each}
+      </div>
+    {/if}
     <div class="input-shell">
       <textarea
         id="input"
@@ -416,7 +584,7 @@
           <div class="session-item" class:active={current?.id === s.id}>
             <button class="open" onclick={() => openSession(s.id)}>
               <div class="session-title">{s.title}</div>
-              <div class="session-meta">{running && current?.id === s.id ? '⚡ Running... · ' : ''}{s.messages.length} {s.messages.length === 1 ? 'message' : 'messages'} · {formatTime(s.updatedAt)}{s.windowId === windowId ? ' · this window' : ''}</div>
+              <div class="session-meta">{running && current?.id === s.id ? '⚡ Running... · ' : ''}{s.messages.length} {s.messages.length === 1 ? 'message' : 'messages'} · {formatTime(s.updatedAt)}{chatState.byTab[tabId] === s.id ? ' · this tab' : ''}</div>
             </button>
             <button class="session-del-btn" title="Delete chat" onclick={() => deleteSession(s.id)}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -613,6 +781,41 @@
     border-top: 1px solid var(--border);
     background: var(--bg);
     flex-shrink: 0;
+  }
+  .slash-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .slash-item {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    text-align: left;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+  }
+  .slash-item:hover {
+    border-color: var(--accent);
+  }
+  .slash-usage {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .slash-desc {
+    color: var(--muted);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .input-shell {
     display: flex; align-items: flex-end; gap: 10px;
