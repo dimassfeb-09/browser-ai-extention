@@ -1,0 +1,28 @@
+{
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "description": "Browser extension for AI-driven web automation: chat UI + OpenAI chat completions as the brain, the extension as the harness.",
+  "devDependencies": {
+    "@wxt-dev/module-svelte": "^2.0.3",
+    "playwright": "^1.64.1",
+    "svelte": "^5.19.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5",
+    "wxt": "^0.20.11"
+  },
+  "name": "web-automation-extension",
+  "private": true,
+  "scripts": {
+    "build": "wxt build",
+    "dev": "wxt",
+    "prepare": "wxt prepare",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "wxt prepare && tsc --noEmit",
+    "zip": "wxt zip",
+    "test:browser": "xvfb-run -a node tests/e2e/browser-test.mjs"
+  },
+  "type": "module",
+  "version": "0.1.0"
+}

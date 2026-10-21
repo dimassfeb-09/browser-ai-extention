@@ -1,0 +1,38 @@
+<!doctype html>
+<!-- Fixture: dynamic page behaviour — async rendering, a modal that
+     appears after a click, and infinite scroll appending items.
+     Used as a manual/E2E testbed for snapshot freshness: the agent
+     must re-observe after every action to see #modal and new items. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Fixture — Dynamic list</title></head>
+  <body>
+    <h1>Products</h1>
+    <button id="open">Open details</button>
+    <ul id="list"></ul>
+    <div id="modal" hidden>
+      <p>Detail modal</p>
+      <button id="close">Close</button>
+    </div>
+    <script>
+      const list = document.getElementById('list');
+      let n = 0;
+      function addItems(count) {
+        for (let i = 0; i < count; i++) {
+          const li = document.createElement('li');
+          li.innerHTML = 'Item ' + ++n + ' <button>Buy ' + n + '</button>';
+          list.appendChild(li);
+        }
+      }
+      addItems(10);
+      window.addEventListener('scroll', () => {
+        if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 50) addItems(5);
+      });
+      document.getElementById('open').addEventListener('click', () => {
+        setTimeout(() => (document.getElementById('modal').hidden = false), 300);
+      });
+      document.getElementById('close').addEventListener('click', () => {
+        document.getElementById('modal').hidden = true;
+      });
+    </script>
+  </body>
+</html>

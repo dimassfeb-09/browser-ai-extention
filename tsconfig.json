@@ -1,0 +1,1 @@
+{"compilerOptions":{"noUncheckedIndexedAccess":true,"skipLibCheck":true,"strict":true},"extends":"./.wxt/tsconfig.json","include":["src","entrypoints","tests","wxt.config.ts","vitest.config.ts",".wxt/wxt.d.ts"]}

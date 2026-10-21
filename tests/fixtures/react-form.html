@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- Fixture: controlled-input behaviour like React.
+     Typing with a plain `el.value = x` does NOT update app state;
+     only the native prototype setter + input event does.
+     The content script's level-0 typing must make #state show the value. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Fixture — React-like controlled input</title></head>
+  <body>
+    <h1>Newsletter</h1>
+    <label>Email <input id="email" type="email" placeholder="you@example.com" /></label>
+    <button id="subscribe">Subscribe</button>
+    <p>state: <span id="state">(empty)</span></p>
+    <script>
+      // Emulates React's value tracking: the app keeps its own state,
+      // updated only from 'input' events, and re-renders from state.
+      const input = document.getElementById('email');
+      const state = document.getElementById('state');
+      const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value');
+      let lastTracked = input.value;
+      let appState = '';
+      Object.defineProperty(input, 'value', {
+        get() { return descriptor.get.call(this); },
+        set(v) { lastTracked = v; descriptor.set.call(this, v); },
+      });
+      input.addEventListener('input', () => {
+        // React checks its tracker: if the DOM value equals the tracked
+        // value it assumes nothing changed, the state update is skipped,
+        // and the app state stays stale — this fixture is discriminating:
+        // a plain `el.value = x` leaves appState empty and fails tests.
+        if (input.value !== lastTracked) {
+          lastTracked = input.value;
+          appState = input.value;
+          state.textContent = appState || '(empty)';
+        }
+      });
+      document.getElementById('subscribe').addEventListener('click', () => {
+        state.textContent = 'subscribed:' + appState;
+      });
+    </script>
+  </body>
+</html>

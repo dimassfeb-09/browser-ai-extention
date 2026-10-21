@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- Fixture: open shadow DOM. The collector walks shadowRoot trees,
+     so #shadow-btn must appear in the snapshot even though it is not
+     reachable via a plain document.querySelectorAll. -->
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Fixture — Shadow DOM</title></head>
+  <body>
+    <h1>Shadow DOM host</h1>
+    <my-widget></my-widget>
+    <p id="result">not clicked</p>
+    <script>
+      class MyWidget extends HTMLElement {
+        connectedCallback() {
+          const root = this.attachShadow({ mode: 'open' });
+          root.innerHTML = '<button id="shadow-btn">Shadow button</button>';
+          root.getElementById('shadow-btn').addEventListener('click', () => {
+            document.getElementById('result').textContent = 'shadow clicked';
+          });
+        }
+      }
+      customElements.define('my-widget', MyWidget);
+    </script>
+  </body>
+</html>
