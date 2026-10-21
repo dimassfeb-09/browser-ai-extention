@@ -17,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const extPath = path.join(root, '.output/chrome-mv3');
+const extPath = path.join(root, 'output/chrome-mv3');
 const fixturesDir = path.join(root, 'tests/fixtures');
 
 let failures = 0;

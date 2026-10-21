@@ -16,9 +16,19 @@ export class TabContentDriver implements BrowserDriver {
     try {
       response = (await browser.tabs.sendMessage(tabId, request)) as ContentResponse;
     } catch {
-      throw new Error(
-        'Cannot reach the content script on this tab. Reload the tab (or open a normal http(s) page) and try again.',
-      );
+      // Fall back: inject the content script into tabs that existed before
+      // the extension was installed / where auto-injection missed, then retry.
+      try {
+        await browser.scripting.executeScript({
+          target: { tabId },
+          files: ['/content-scripts/content.js'],
+        });
+        response = (await browser.tabs.sendMessage(tabId, request)) as ContentResponse;
+      } catch {
+        throw new Error(
+          'Cannot reach the content script on this tab. Reload the tab (or open a normal http(s) page) and try again.',
+        );
+      }
     }
     if (!response || response.kind === 'waa:error') {
       throw new Error(
