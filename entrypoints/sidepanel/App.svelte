@@ -277,6 +277,12 @@
     }
   }
 
+  function onWindowKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape') return;
+    if (showSettings) showSettings = false;
+    else if (showHistory) showHistory = false;
+  }
+
   function formatTime(ts: number) {
     if (!ts) return '';
     const d = new Date(ts);
@@ -287,6 +293,8 @@
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + timeStr;
   }
 </script>
+
+<svelte:window onkeydown={onWindowKeydown} />
 
 <main>
   <div class="topbar">
@@ -411,7 +419,7 @@
     </div>
   </div>
 
-  <div id="settingsModal" class="modal" class:open={showSettings} onclick={(e) => { if (e.target === e.currentTarget) showSettings = false; }}>
+  <div id="settingsModal" class="modal" class:open={showSettings} onclick={(e) => { if (e.target === e.currentTarget) showSettings = false; }} role="presentation">
     <div class="modal-card">
       <div class="modal-title">AI Configuration</div>
       <label class="field">
