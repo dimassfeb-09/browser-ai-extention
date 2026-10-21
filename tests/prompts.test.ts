@@ -83,4 +83,29 @@ describe('buildUserPrompt', () => {
     const out = buildUserPrompt('x', snap(makeElements(1)), [], 'The page did NOT change…');
     expect(out).toContain('HARNESS NOTICE: The page did NOT change…');
   });
+
+  it('renders recent steps WITH the typed text (the model must see what it already entered)', () => {
+    const out = buildUserPrompt('isi form', snap(makeElements(1)), [
+      {
+        step: 19,
+        snapshotHash: 'h',
+        action: { type: 'type', index: 53, text: 'Random Toll Segment 77' },
+        result: { ok: true, message: 'Typed (native setter)', level: 0 },
+      },
+    ]);
+    expect(out).toContain('type [53] "Random Toll Segment 77"');
+  });
+
+  it('renders the conversation so follow-ups are answered from the agent\'s own record', () => {
+    const out = buildUserPrompt('berapa data yang kamu tambah?', snap(makeElements(1)), [], undefined, [
+      { role: 'user', content: 'Fill randomly value' },
+      {
+        role: 'assistant',
+        content: '(done) Filled a random value and saved it.\nActions taken: click [54]; type [53] "Random Toll Segment 77"',
+      },
+    ]);
+    expect(out).toContain('Conversation so far');
+    expect(out).toContain('USER: Fill randomly value');
+    expect(out).toContain('YOU: (done) Filled a random value');
+  });
 });

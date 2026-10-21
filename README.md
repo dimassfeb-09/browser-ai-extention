@@ -48,6 +48,15 @@ above that works on plain JSON and is unit-testable without a browser.
   of burning tokens.
 - **Shadow DOM** — the collector walks open shadow roots.
 - **Human handoff** — `ask_user` pauses the run for captcha/OTP/payment.
+- **Conversation memory** — every run receives the chat's earlier goals
+  plus the agent's own results and action digests ("Conversation so
+  far"), so follow-ups like "how many did you add?" are answered from
+  what the agent actually did, not guessed from the page. Within a run,
+  recent steps are rendered with their payloads (typed text included),
+  a harness notice fires when the page navigates (a submit likely
+  completed the goal), and the system prompt requires doing the task
+  exactly as many times as asked — one "fill" goal no longer produces
+  three saved records.
 - **Iframes** — the content script runs in all frames; the driver merges
   per-frame snapshots into one and routes actions back by frameId.
 - **Forms** — `<select>` accepts the option's visible text or value;

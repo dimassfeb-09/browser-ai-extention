@@ -9,7 +9,7 @@
   import { ChromeChatStore, getCurrentWindowId } from '../../src/adapters/chrome/chatStore';
   import { TabContentDriver } from '../../src/adapters/chrome/contentDriver';
   import { ChatCompletionsClient } from '../../src/adapters/openai/client';
-  import { runAgent } from '../../src/core/agentLoop';
+  import { describeAction, runAgent } from '../../src/core/agentLoop';
   import {
     activeSession,
     addMessage,
@@ -21,7 +21,7 @@
     startNewSession,
     upsertSession,
   } from '../../src/core/chat';
-  import type { ChatMessage, ChatState } from '../../src/core/types';
+  import type { ChatMessage, ChatState, ConversationTurn } from '../../src/core/types';
 
   const store = new ChromeChatStore();
   const uid = () =>
@@ -130,6 +130,52 @@
     showSettings = false;
   }
 
+  /** Compact digest of what a finished run actually DID, extracted from
+   *  its step log — summaries alone can under-report (one run may save
+   *  several records), and the model needs the actions to answer
+   *  follow-ups like "how many did you add?" truthfully. */
+  function actionsDigest(steps: string[]): string {
+    const parts: string[] = [];
+    for (const line of steps) {
+      if (!line.startsWith('action: ')) continue;
+      try {
+        const parsed = JSON.parse(line.slice('action: '.length)) as {
+          action?: Parameters<typeof describeAction>[0];
+        };
+        const a = parsed.action;
+        if (!a || a.type === 'done' || a.type === 'ask_user') continue;
+        parts.push(
+          a.type === 'type'
+            ? `${describeAction(a)} ${JSON.stringify((a as { text: string }).text.slice(0, 40))}`
+            : describeAction(a),
+        );
+      } catch {
+        // A truncated log line is not worth failing the send over.
+      }
+      if (parts.length >= 15) break;
+    }
+    return parts.join('; ');
+  }
+
+  /** Earlier exchanges of THIS chat, handed to the next run so the model
+   *  remembers its own previous goals, results and actions. */
+  function buildConversation(): ConversationTurn[] {
+    const turns: ConversationTurn[] = [];
+    for (const m of current?.messages ?? []) {
+      if (m.role === 'user') {
+        turns.push({ role: 'user', content: m.content.slice(0, 500) });
+      } else if (m.role === 'assistant' && m.content && m.content !== 'Working on it…') {
+        const digest = actionsDigest(m.steps ?? []);
+        const content =
+          (m.status ? `(${m.status}) ` : '') +
+          m.content.slice(0, 600) +
+          (digest ? `\nActions taken: ${digest}` : '');
+        turns.push({ role: 'assistant', content });
+      }
+    }
+    return turns.slice(-8);
+  }
+
   async function send() {
     const goal = draft.trim();
     if (!goal || running) return;
@@ -139,6 +185,7 @@
     }
     if (!current) return;
     draft = '';
+    const conversation = buildConversation();
     await saveSettings(settings);
 
     const now = Date.now();
@@ -170,6 +217,7 @@
         driver,
         llm,
         signal,
+        conversation,
         logger: {
           log: (event, data) => {
             steps.push(`${event}: ${JSON.stringify(data ?? '')?.slice(0, 240) ?? ''}`);

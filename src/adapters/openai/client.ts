@@ -48,7 +48,7 @@ export class ChatCompletionsClient implements LlmClient {
           { role: 'system', content: buildSystemPrompt() },
           {
             role: 'user',
-            content: buildUserPrompt(input.goal, input.snapshot, input.history, input.notice),
+            content: buildUserPrompt(input.goal, input.snapshot, input.history, input.notice, input.conversation),
           },
         ],
         tools: toolDefinitions,

@@ -42,6 +42,17 @@ const fixtureBase = `http://127.0.0.1:${fixtureServer.address().port}`;
 
 // ---------- fake OpenAI server (deterministic, snapshot-driven) ----------
 function fakeDecision(userContent) {
+  // Cross-run memory check: a follow-up run's prompt must carry the
+  // earlier exchange under "Conversation so far" — answer FROM it.
+  if (
+    userContent.includes('Conversation so far') &&
+    userContent.includes('USER: Subscribe with test@example.com')
+  ) {
+    return {
+      type: 'done',
+      summary: 'Recalled from this chat: you asked to subscribe test@example.com and it completed.',
+    };
+  }
   if (userContent.includes('subscribed:')) {
     return { type: 'done', summary: 'Email filled and subscribed.' };
   }
@@ -233,6 +244,19 @@ try {
   check('B UI run finished (summary bubble, no status bar)', panelText.includes('Email filled and subscribed.') && !panelText.includes('done —'));
   const finalState = await pageD.evaluate(() => document.getElementById('state').textContent);
   check('B page actually subscribed via the agent loop', finalState === 'subscribed:test@example.com', `state=${finalState}`);
+
+  // B2: follow-up in the SAME chat. Without conversation memory the
+  // model cannot know what it did in the previous run (the exact
+  // failure seen in the field: "how many did you add?" -> "I only
+  // scrolled"). The fake LLM can only produce the recall summary if
+  // the history actually reached it.
+  await panel.locator('textarea').fill('What did you do earlier in this chat?');
+  await pageD.bringToFront();
+  await panel.evaluate(() => {
+    [...document.querySelectorAll('button')].find((b) => b.textContent === 'Send')?.click();
+  });
+  await panel.waitForFunction(() => document.body.innerText.includes('Recalled from this chat'), { timeout: 30_000 });
+  check('B2 follow-up answered from conversation history (cross-run memory)', true);
 
   // ---------- Part C: chat history + per-window sessions ----------
   const messagesText = () =>

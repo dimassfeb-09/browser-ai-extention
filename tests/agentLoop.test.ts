@@ -141,6 +141,57 @@ describe('runAgent', () => {
     expect(notices[2]).toContain('did NOT change');
   });
 
+  it('passes the conversation history through to the LLM (cross-run memory)', async () => {
+    const seen: Array<unknown> = [];
+    const llm: LlmClient = {
+      nextAction: async (input) => {
+        seen.push(input.conversation);
+        return { type: 'done', summary: 'ok' };
+      },
+    };
+    const conversation = [
+      { role: 'user', content: 'Fill randomly value' } as const,
+      { role: 'assistant', content: '(done) Filled and saved one record.' } as const,
+    ];
+    await runAgent('berapa yang kamu tambah?', {
+      driver: new FakeDriver(),
+      llm,
+      clock: fakeClock,
+      conversation,
+    });
+    expect(seen[0]).toEqual(conversation);
+  });
+
+  it('warns after navigation that a submit likely completed the goal (no re-fill)', async () => {
+    // Regression: one "fill randomly" goal produced THREE saved records —
+    // after the save the page navigated to the list and the model simply
+    // started the form again, with nothing telling it the job was done.
+    let observed = 0;
+    const navDriver: BrowserDriver = {
+      observe: async () => {
+        observed++;
+        return observed === 1
+          ? snap('https://example.com/form', 'form')
+          : snap('https://example.com/list', 'list');
+      },
+      act: async () => ({ ok: true, message: 'ok', level: 0 }),
+    };
+    const notices: Array<string | undefined> = [];
+    const llm: LlmClient = {
+      nextAction: async (input) => {
+        notices.push(input.notice);
+        return notices.length === 1
+          ? { type: 'click', index: 0 }
+          : { type: 'done', summary: 'verified in list' };
+      },
+    };
+    const result = await runAgent('fill one record', { driver: navDriver, llm, clock: fakeClock });
+    expect(result.status).toBe('done');
+    expect(notices[0]).toBeUndefined();
+    expect(notices[1]).toContain('navigated');
+    expect(notices[1]).toContain('do NOT start the same form again');
+  });
+
   it('stops a model that insists on the identical no-effect action, without executing it endlessly', async () => {
     let actCount = 0;
     const staticDriver: BrowserDriver = {

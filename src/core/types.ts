@@ -42,6 +42,14 @@ export interface PageSnapshot {
   capturedAt: number;
 }
 
+/** One earlier exchange in the chat, fed back to the model so follow-up
+ *  questions ("how many did you add?") are answered from what the agent
+ *  actually did — not guessed from the current page. */
+export interface ConversationTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export type Action =
   | { type: 'click'; index: number }
   /** Click at an offset (px) inside the element — for canvas UIs and

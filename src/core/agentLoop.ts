@@ -1,6 +1,6 @@
 import type { BrowserDriver, Clock, LlmClient, Logger } from './ports';
 import { noopLogger, systemClock } from './ports';
-import type { Action, AgentRunResult, StepRecord } from './types';
+import type { Action, AgentRunResult, ConversationTurn, StepRecord } from './types';
 import { hashSnapshot } from './snapshot';
 
 export interface AgentDeps {
@@ -11,13 +11,16 @@ export interface AgentDeps {
   maxSteps?: number;
   /** Cooperative abort flag, flipped by the UI stop button. */
   signal?: { aborted: boolean };
+  /** Earlier exchanges in this chat (previous goals + own results), so
+   *  the model remembers what it already did in earlier runs. */
+  conversation?: ConversationTurn[];
 }
 
 function actionKey(action: Action): string {
   return JSON.stringify(action);
 }
 
-function describeAction(action: Action): string {
+export function describeAction(action: Action): string {
   switch (action.type) {
     case 'click':
       return `click [${action.index}]`;
@@ -54,6 +57,7 @@ export async function runAgent(goal: string, deps: AgentDeps): Promise<AgentRunR
   const history: StepRecord[] = [];
 
   let prevHash: string | null = null;
+  let prevUrl: string | null = null;
   let unchanged = 0;
   let lastActionKey: string | null = null;
   let sameActionRepeats = 0;
@@ -84,14 +88,27 @@ export async function runAgent(goal: string, deps: AgentDeps): Promise<AgentRunR
       return { status: 'stuck', summary, history };
     }
 
-    const notice =
-      unchanged > 0
-        ? `The page did NOT change after the previous action (unchanged ${unchanged}x in a row). That action had no visible effect — do NOT repeat it. Choose a different element or a different strategy (scroll, wait for loading, click the parent/menu item first), or finish with done/ask_user if appropriate.`
-        : undefined;
+    const notices: string[] = [];
+    if (unchanged > 0) {
+      notices.push(
+        `The page did NOT change after the previous action (unchanged ${unchanged}x in a row). That action had no visible effect — do NOT repeat it. Choose a different element or a different strategy (scroll, wait for loading, click the parent/menu item first), or finish with done/ask_user if appropriate.`,
+      );
+    }
+    if (prevUrl !== null && snapshot.url !== prevUrl) {
+      // Navigation right after acting usually means a submit/save went
+      // through. Without this milestone the model cheerfully starts the
+      // same form again (observed in the field: one "fill randomly" goal
+      // produced three saved records).
+      notices.push(
+        `The page navigated (${prevUrl} -> ${snapshot.url}) since the last step. Navigation after a click usually means a form was submitted/saved or a new section opened. FIRST check the snapshot: if the goal is already complete (e.g. the record you created is visible), finish with done — do NOT start the same form again unless the goal explicitly asks for multiple records.`,
+      );
+    }
+    prevUrl = snapshot.url;
+    const notice = notices.length > 0 ? notices.join(' ') : undefined;
 
     let action;
     try {
-      action = await deps.llm.nextAction({ goal, snapshot, history, notice });
+      action = await deps.llm.nextAction({ goal, snapshot, history, notice, conversation: deps.conversation });
     } catch (err) {
       const summary = `LLM failed: ${err instanceof Error ? err.message : String(err)}`;
       logger.log('error', summary);

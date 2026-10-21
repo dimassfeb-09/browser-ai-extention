@@ -1,4 +1,11 @@
-import type { Action, ActResult, ChatState, PageSnapshot, StepRecord } from './types';
+import type {
+  Action,
+  ActResult,
+  ChatState,
+  ConversationTurn,
+  PageSnapshot,
+  StepRecord,
+} from './types';
 
 /**
  * Ports (hexagonal architecture). The core depends only on these
@@ -17,6 +24,8 @@ export interface LlmClient {
     history: StepRecord[];
     /** Harness feedback for the model, e.g. "the last action had no effect". */
     notice?: string;
+    /** Earlier goals + the agent's own results from this chat session. */
+    conversation?: ConversationTurn[];
   }): Promise<Action>;
 }
 
