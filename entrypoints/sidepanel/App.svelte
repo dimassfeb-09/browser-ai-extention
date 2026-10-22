@@ -39,6 +39,9 @@
   import ConfirmDialog from '../../src/components/ConfirmDialog.svelte';
   import ActionApprovalDialog from '../../src/components/ActionApprovalDialog.svelte';
   import StepTimeline from '../../src/components/StepTimeline.svelte';
+  import EmptyState from '../../src/components/EmptyState.svelte';
+  import SettingsModal from '../../src/components/SettingsModal.svelte';
+  import HistoryDrawer from '../../src/components/HistoryDrawer.svelte';
   import {
     deleteRecipe,
     findRecipe,
@@ -65,6 +68,15 @@
   let showHistory = $state(false);
   let historyQuery = $state('');
   let showSettings = $state(false);
+  $effect(() => {
+    if (showSettings) {
+      if (models.length === 0 && Array.isArray(settings.models) && settings.models.length > 0) {
+        models = settings.models;
+      }
+      if (settings.model && !models.includes(settings.model)) models = [settings.model, ...models];
+      settings.models = models;
+    }
+  });
   let models = $state<string[]>([]);
   let modelsLoading = $state(false);
   let modelsError = $state('');
@@ -903,18 +915,7 @@
 
   <div id="log" class="log" data-testid="messages" bind:this={messagesEl}>
     {#if !current || current.messages.length === 0}
-      <div class="empty-state">
-        <div class="empty-icon">A</div>
-        <div class="empty-title visually-hidden">No messages yet</div>
-        <div class="empty-greeting">How can I help you today?</div>
-        <div class="empty-rotate" aria-live="polite">{openingPrompts[openingIndex]}</div>
-        <div class="empty-chips">
-          <button class="empty-chip" type="button" onclick={() => (draft = 'Isi form ini dengan data contoh dan simpan')}>Fill a form</button>
-          <button class="empty-chip" type="button" onclick={() => (draft = 'Cari data berdasarkan nama/email lalu tampilkan detailnya')}>Search a record</button>
-          <button class="empty-chip" type="button" onclick={() => (draft = 'Ringkas data yang sedang tampil di halaman ini')}>Summarize page</button>
-        </div>
-        <div class="empty-text">Write a goal for the active tab below and press Send.</div>
-      </div>
+      <EmptyState prompt={openingPrompts[openingIndex]} onDraft={(t) => (draft = t)} />
     {:else}
       {#each current.messages as m (m.id)}
         <div class="msg-row {m.role}">
@@ -1068,130 +1069,39 @@
     onDeny={() => resolveActionApproval('deny')}
   />
 
-  <div id="historyBackdrop" class="drawer-backdrop" class:open={showHistory} onclick={() => (showHistory = false)} role="presentation"></div>
-  <div id="historyDrawer" class="history-drawer" class:open={showHistory} data-testid="history">
-    <div class="drawer-header">
-      <div class="drawer-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        Chats
-      </div>
-      <button class="icon-btn" title="Close" onclick={() => (showHistory = false)}>✕</button>
-    </div>
+  <HistoryDrawer
+    open={showHistory}
+    history={history}
+    filteredHistory={filteredHistory}
+    historyGroups={historyGroups}
+    bind:historyQuery
+    currentId={current?.id ?? null}
+    {running}
+    tabId={tabId}
+    byTab={chatState.byTab}
+    deletingIds={deletingIds}
+    onClose={() => (showHistory = false)}
+    onNewChat={() => void newChat()}
+    onOpenSession={(id) => void openSession(id)}
+    onDeleteSession={(id) => void deleteSession(id)}
+    onClearAll={() => void clearAllHistory()}
+  />
 
-    <button class="drawer-new-chat-btn" onclick={newChat}>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      New chat
-    </button>
-
-    <div class="history-search">
-      <input
-        type="text"
-        placeholder="Search chats…"
-        bind:value={historyQuery}
-        aria-label="Search chats"
-      />
-    </div>
-
-    <div id="sessionList" class="drawer-list">
-      {#if filteredHistory.length === 0}
-        <div class="drawer-empty">{history.length === 0 ? 'No chats yet.' : 'No chats match.'}</div>
-      {:else}
-        {#each historyGroups as [label, items] (label)}
-          <div class="history-group">
-            <div class="history-group-label">{label}</div>
-            {#each items as s (s.id)}
-              <div class="session-item" class:active={current?.id === s.id} class:erasing={deletingIds.has(s.id)}>
-                <button class="open" onclick={() => openSession(s.id)}>
-                  <div class="session-title">{s.title}</div>
-                  <div class="session-meta">{running && current?.id === s.id ? '⚡ Running... · ' : ''}{s.messages.length} {s.messages.length === 1 ? 'message' : 'messages'} · {formatTime(s.updatedAt)}{chatState.byTab[tabId] === s.id ? ' · this tab' : ''}</div>
-                </button>
-                <button class="session-del-btn" title="Delete chat" disabled={deletingIds.has(s.id)} onclick={() => deleteSession(s.id)}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              </div>
-            {/each}
-          </div>
-        {/each}
-      {/if}
-    </div>
-
-    <div class="drawer-footer">
-      <button id="clearAllHistoryBtn" class="clear-all-btn" onclick={clearAllHistory}>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        Clear all history
-      </button>
-    </div>
-  </div>
-
-  <div id="settingsModal" class="modal" class:open={showSettings} onclick={(e) => { if (e.target === e.currentTarget) showSettings = false; }} role="presentation">
-    <div class="modal-card">
-      <div class="modal-header">
-        <div>
-          <div class="modal-title">AI Configuration</div>
-          <div class="modal-subtitle">Connection, model, dan perilaku agent.</div>
-        </div>
-        <button class="icon-btn" type="button" aria-label="Close settings" onclick={() => (showSettings = false)}>✕</button>
-      </div>
-
-      <SettingsCard title="Connection" open={true}>
-        <label class="field">
-          <span>API Key</span>
-          <input type="password" bind:value={settings.apiKey} placeholder="sk-..." autocomplete="off" />
-        </label>
-        <label class="field">
-          <span>Model</span>
-          <div class="input-row">
-            <input type="text" bind:value={settings.model} placeholder="gpt-4o-mini" />
-            <button class="icon-btn" type="button" title="Load models from endpoint" onclick={() => void loadModels()} disabled={modelsLoading}>
-              {modelsLoading ? '…' : '↻'}
-            </button>
-          </div>
-        </label>
-        <label class="field">
-          <span>Available models</span>
-          <select id="modelSelect" data-testid="models" bind:value={settings.model}>
-            {#if !models.includes(settings.model)}
-              <option value={settings.model}>{settings.model} (current)</option>
-            {/if}
-            {#each models as m (m)}
-              <option value={m}>{m}</option>
-            {/each}
-          </select>
-        </label>
-        {#if modelsError}
-          <p class="status">{modelsError}</p>
-        {/if}
-        <label class="field">
-          <span>Base URL</span>
-          <input type="text" bind:value={settings.baseURL} placeholder="https://.../v1beta/openai" />
-        </label>
-      </SettingsCard>
-
-      <SettingsCard title="Advanced">
-        <label class="field">
-          <span>Max steps per run (0 = no limit)</span>
-          <input type="number" bind:value={settings.maxSteps} min="0" step="1" />
-        </label>
-        <label class="field checkbox">
-          <input type="checkbox" bind:checked={settings.actionGuardrails} />
-          <span>Guardrails</span>
-          <small class="field-hint">Minta approval sebelum click/type/navigate.</small>
-        </label>
-        <label class="field checkbox">
-          <input type="checkbox" bind:checked={settings.actionGuardrailsBypass} />
-          <span>Bypass by default</span>
-          <small class="field-hint">Jalankan aksi langsung (disimpan).</small>
-        </label>
-      </SettingsCard>
-
-      <div class="modal-actions">
-        <button class="btn primary" onclick={saveSettingsNow}>Save settings</button>
-      </div>
-    </div>
-  </div>
+  <SettingsModal
+    bind:open={showSettings}
+    bind:settings
+    {models}
+    {modelsLoading}
+    {modelsError}
+    onSave={() => void saveSettingsNow()}
+    onLoadModels={() => void loadModels()}
+    onClose={() => (showSettings = false)}
+  />
 </main>
 
 <style>
+
+
   :global(html[data-theme="light"]) {
     --bg: #f7f8fa;
     --surface: #ffffff;
@@ -1208,6 +1118,8 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
     --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.12);
   }
+
+
   :global(:root) {
     --bg: #0f1115;
     --surface: #171a21;
@@ -1227,9 +1139,17 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
     --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.45);
   }
+
+
   :global(html, body) { margin: 0; padding: 0; height: 100%; background: var(--bg); }
+
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
+
+
   button { font: inherit; color: var(--text); background: transparent; border: 1px solid var(--border); cursor: pointer; }
+
+
   main {
     height: 100vh; width: 100%;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -1243,6 +1163,8 @@
     position: relative;
   }
 
+
+
   /* ---------- top bar ---------- */
   .topbar {
     display: flex; align-items: center; gap: 10px;
@@ -1251,14 +1173,20 @@
     background: var(--bg);
     flex-shrink: 0;
   }
+
+
   .topbar-left {
     display: flex; align-items: center; gap: 10px;
     min-width: 0; flex: 1;
   }
+
+
   .topbar-right {
     display: flex; align-items: center; gap: 4px;
     flex-shrink: 0;
   }
+
+
   .logo {
     width: 26px; height: 26px; border-radius: 8px;
     background: var(--accent);
@@ -1266,9 +1194,17 @@
     color: #fff; font-weight: 700; font-size: 13px;
     flex-shrink: 0;
   }
+
+
   .header-info { min-width: 0; }
+
+
   .title { font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+
   .subtitle { font-size: 11px; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+
 
   .icon-btn {
     width: 30px; height: 30px; border-radius: var(--radius-sm);
@@ -1278,9 +1214,17 @@
     transition: background .15s, color .15s, border-color .15s;
     flex-shrink: 0;
   }
+
+
   .icon-btn:hover { background: var(--surface-2); color: var(--text); }
+
+
   .icon-btn:active { transform: scale(0.94); }
+
+
   .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+
 
   /* ---------- messages ---------- */
   .log {
@@ -1289,25 +1233,51 @@
     display: flex; flex-direction: column;
     scroll-behavior: smooth;
   }
+
+
   .log::-webkit-scrollbar { width: 8px; }
+
+
   .log::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 4px; }
+
+
   .log::-webkit-scrollbar-track { background: transparent; }
 
+
+
   .msg-row { display: flex; gap: 10px; padding: 10px 14px; }
+
+
   .msg-row.user { justify-content: flex-end; align-items: flex-end; }
+
+
   .msg-row.assistant { justify-content: flex-start; align-items: flex-start; }
+
+
   .msg-row.system, .msg-row.error { justify-content: center; padding: 6px 18px; }
+
+
 
   .avatar {
     width: 26px; height: 26px; border-radius: 8px;
     flex-shrink: 0; display: flex; align-items: center; justify-content: center;
     font-size: 11.5px; font-weight: 700;
   }
+
+
   .avatar.assistant { background: var(--accent); color: #fff; }
+
+
   .avatar.user { background: var(--surface-3); color: var(--text); }
 
+
+
   .msg-content { flex: 1; min-width: 0; max-width: 88%; }
+
+
   .msg-row.user .msg-content { flex: 0 1 auto; max-width: 82%; }
+
+
 
   .msg-row.user .bubble {
     background: var(--surface-2); color: var(--text);
@@ -1319,25 +1289,49 @@
     margin-left: auto;
     box-shadow: var(--shadow-sm);
   }
+
+
   .assistant-text {
     color: var(--text); line-height: 1.6;
     white-space: normal; word-break: break-word; letter-spacing: -0.003em;
     padding: 2px 0;
   }
+
+
   .assistant-text :global(p) { margin: 0 0 6px; }
+
+
   .assistant-text :global(p:last-child) { margin-bottom: 0; }
+
+
   .assistant-text :global(h2) { font-size: 15px; margin: 8px 0 4px; color: var(--text); }
+
+
   .assistant-text :global(h3) { font-size: 14px; margin: 8px 0 4px; color: var(--text); }
+
+
   .assistant-text :global(h4) { font-size: 13px; margin: 6px 0 3px; color: var(--text); }
+
+
   .assistant-text :global(strong) { font-weight: 700; color: var(--text); }
+
+
   .assistant-text :global(em) { font-style: italic; }
+
+
   .assistant-text :global(code) {
     font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px;
     background: var(--bg); border: 1px solid var(--border);
     border-radius: 4px; padding: 1px 5px;
   }
+
+
   .assistant-text :global(ul) { margin: 4px 0 6px 18px; }
+
+
   .assistant-text :global(li) { margin: 2px 0; }
+
+
   .assistant-bubble {
     background: var(--surface); color: var(--text);
     padding: 10px 14px; border-radius: var(--radius);
@@ -1347,12 +1341,18 @@
     box-shadow: var(--shadow-sm);
     max-width: 92%;
   }
+
+
   .msg-time {
     font-size: 10.5px; color: var(--muted); margin-top: 4px;
   }
+
+
   .injected-details {
     margin-top: 4px;
   }
+
+
   .injected-details summary {
     cursor: pointer;
     user-select: none;
@@ -1361,9 +1361,17 @@
     color: var(--muted);
     font-weight: 500;
   }
+
+
   .injected-details summary::-webkit-details-marker { display: none; }
+
+
   .injected-details summary::before { content: '▸ '; }
+
+
   .injected-details[open] summary::before { content: '▾ '; }
+
+
   .injected-pre {
     margin: 3px 0 0;
     padding: 6px 8px;
@@ -1376,30 +1384,25 @@
     max-height: 120px;
     overflow: auto;
   }
+
+
   .msg-row.user .msg-time { text-align: right; }
+
+
   .msg-text.system { color: var(--muted); font-size: 12px; text-align: center; }
+
+
   .msg-text.error { color: var(--danger); font-size: 12px; text-align: center; }
+
+
 
   .chip {
     font-size: 10px; background: var(--surface-3); color: var(--text);
     border-radius: 999px; padding: 2px 8px; width: fit-content; margin-top: 6px;
     border: 1px solid var(--border);
   }
-  .msg-row.user .chip { background: var(--surface-3); color: var(--text); }
 
-  .stream-details {
-    margin-top: 6px; font-size: 12px; color: var(--muted);
-  }
-  .stream-details summary {
-    cursor: pointer; user-select: none; padding: 4px 0;
-    list-style: none; color: var(--muted);
-    transition: color .15s;
-    font-weight: 600;
-  }
-  .stream-details summary::-webkit-details-marker { display: none; }
-  .stream-details summary::before { content: "▸ "; }
-  .stream-details[open] summary::before { content: "▾ "; }
-  .stream-details summary:hover { color: var(--text); }
+
   .stream-pre {
     margin-top: 6px; padding: 10px 12px;
     background: var(--bg); border: 1px solid var(--border);
@@ -1407,58 +1410,12 @@
     white-space: pre-wrap; font-family: "SF Mono", Menlo, Consolas, monospace;
     font-size: 11.5px; color: var(--muted); line-height: 1.45;
   }
-  .step-timeline {
-    list-style: none; margin: 8px 0 0; padding: 0;
-    display: flex; flex-direction: column; gap: 8px;
-  }
-  .step-timeline li {
-    display: grid; grid-template-columns: 24px 1fr; gap: 8px;
-    align-items: start; font-size: 11.5px;
-  }
-  .step-timeline li.failed { color: var(--danger); }
-  .step-index {
-    width: 22px; height: 22px; border-radius: 50%;
-    background: var(--surface2); color: var(--accent);
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums;
-  }
-  .step-line-body { display: flex; flex-direction: column; gap: 2px; }
-  .step-action {
-    color: var(--text); font-family: "SF Mono", Menlo, Consolas, monospace;
-    font-size: 11.5px; line-height: 1.35;
-  }
-  .step-payload {
-    color: var(--muted); font-style: italic; font-size: 11px;
-  }
-  .step-result {
-    font-size: 11px; padding: 1px 0; line-height: 1.4;
-  }
-  .step-result.ok { color: var(--accent); }
-  .step-result.err { color: var(--danger); }
-  .step-result.pending { color: var(--muted); }
+
+
 
   .status { font-size: 12px; margin: 0 14px 4px; color: var(--muted); }
 
-  /* ---------- empty state ---------- */
-  .empty-state {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 8px; padding: 40px 24px; text-align: center; color: var(--muted);
-  }
 
-  .empty-icon {
-    width: 44px; height: 44px; border-radius: 12px;
-    background: var(--surface-2); color: var(--accent);
-    display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 600;
-    margin-bottom: 6px;
-  }
-  .empty-title { font-size: 14px; font-weight: 600; color: var(--text); }
-  .empty-title.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-  .empty-greeting { font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -0.015em; margin-bottom: 6px; }
-  .empty-rotate { min-height: 18px; font-size: 13px; color: var(--muted); line-height: 1.4; }
-  .empty-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; max-width: 320px; }
-  .empty-chip { font-size: 12px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; transition: border-color .15s; }
-  .empty-chip:hover { border-color: var(--accent); }
-  .empty-text { font-size: 12.5px; max-width: 260px; line-height: 1.5; margin-top: 12px; }
 
   /* ---------- composer ---------- */
   .inputbar {
@@ -1467,12 +1424,16 @@
     background: var(--bg);
     flex-shrink: 0;
   }
+
+
   .slash-menu {
     display: flex; flex-direction: column; gap: 2px;
     margin-bottom: 8px; max-height: 220px; overflow-y: auto;
     padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-sm);
     background: var(--surface);
   }
+
+
   .slash-item {
     display: flex; gap: 10px; align-items: baseline;
     text-align: left; padding: 7px 10px;
@@ -1481,9 +1442,17 @@
     cursor: pointer; font: inherit;
     transition: background .12s;
   }
+
+
   .slash-item:hover { background: var(--surface-2); }
+
+
   .slash-usage { font-weight: 600; white-space: nowrap; color: var(--accent); }
+
+
   .slash-desc { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+
 
   .input-shell {
     display: flex; align-items: flex-end; gap: 8px;
@@ -1492,43 +1461,64 @@
     box-shadow: var(--shadow-sm);
     transition: border-color .15s, box-shadow .15s, background .15s;
   }
+
+
   .input-shell:focus-within {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
+
+
   #input {
     flex: 1; border: none; background: transparent; color: var(--text);
     outline: none; resize: none; font: inherit; font-size: 14px;
     line-height: 1.5; max-height: 120px; padding: 6px 0;
   }
+
+
   #input::placeholder { color: var(--muted); }
+
+
   #send, #cancel {
     width: 32px; height: 32px; border-radius: 50%; border: none;
     color: #fff; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0; transition: filter .15s, transform .08s, opacity .15s;
   }
+
+
   #send { background: var(--accent); }
+
+
   #cancel { background: var(--danger); }
+
+
   #send:disabled { opacity: .45; cursor: default; }
+
+
   #send:hover:not(:disabled) { filter: brightness(1.08); }
+
+
   #send:active:not(:disabled) { transform: scale(.94); }
+
+
   #cancel:hover { filter: brightness(1.08); }
+
+
   #cancel:active { transform: scale(.94); }
+
+
   #send:focus-visible, #cancel:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+
+
 
   .input-hint { font-size: 11px; color: var(--muted); text-align: center; margin-top: 6px; }
 
+
+
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
-  /* ---------- history drawer ---------- */
-  .drawer-backdrop {
-    position: fixed; inset: 0; background: rgba(0,0,0,.6);
-    z-index: 30; opacity: 0; pointer-events: none;
-    transition: opacity .2s ease;
-    backdrop-filter: blur(2px);
-  }
-  .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+
   .history-drawer {
     position: fixed; top: 0; bottom: 0; left: 0;
     width: 300px; max-width: 86%;
@@ -1538,55 +1528,28 @@
     display: flex; flex-direction: column;
     box-shadow: var(--shadow-md);
   }
+
+
   .history-drawer.open { transform: translateX(0); }
 
-  .drawer-header {
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
-    background: var(--surface);
-  }
-  .drawer-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-  .drawer-actions { display: flex; align-items: center; gap: 6px; }
 
-  .drawer-new-chat-btn {
-    display: flex; align-items: center; gap: 8px;
-    margin: 10px 12px 6px;
-    padding: 9px 12px;
-    background: var(--surface-2); border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text); font-size: 13px; font-weight: 500;
-    cursor: pointer; transition: background .15s, border-color .15s, color .15s;
-  }
-  .drawer-new-chat-btn:hover { background: var(--surface-3); border-color: var(--accent); color: var(--accent); }
-
-  .drawer-list {
-    flex: 1; overflow-y: auto; padding: 6px 8px;
-    display: flex; flex-direction: column; gap: 4px;
-  }
-  .drawer-list::-webkit-scrollbar { width: 6px; }
-  .drawer-list::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
 
   .history-search {
     padding: 8px 12px 4px;
   }
-  .history-search input {
-    width: 100%; padding: 7px 10px;
-    border: 1px solid var(--border); border-radius: var(--radius-sm);
-    background: var(--bg); color: var(--text); font-size: 12.5px;
-    outline: none; font-family: inherit;
-    transition: border-color .15s, box-shadow .15s;
-  }
-  .history-search input:focus {
-    border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
-  }
+
+
 
   .history-group { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+
+
   .history-group-label {
     font-size: 10.5px; font-weight: 600; color: var(--muted);
     text-transform: uppercase; letter-spacing: 0.06em;
     padding: 6px 6px 2px;
   }
+
+
 
   .session-item {
     display: flex; align-items: center; justify-content: space-between;
@@ -1597,23 +1560,29 @@
     transition: background .15s, border-color .15s;
     user-select: none;
   }
+
+
   .session-item:hover { background: var(--bg); border-color: var(--border); }
+
+
   .session-item.active { background: var(--bg); border-color: var(--accent); }
+
+
   .session-info { min-width: 0; flex: 1; margin-right: 8px; }
+
+
   .session-title {
     font-size: 13px; font-weight: 500; color: var(--text);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+
+
   .session-meta {
     font-size: 10.5px; color: var(--muted); margin-top: 2px;
     display: flex; align-items: center; gap: 6px;
   }
-  .session-item .open {
-    flex: 1; text-align: left; border: none; background: transparent;
-    color: var(--text); cursor: pointer; padding: 0; margin: 0;
-    display: grid; gap: 2px; font: inherit;
-  }
-  .session-item .open:hover { color: var(--text); }
+
+
   .session-del-btn {
     opacity: 0; width: 24px; height: 24px; border-radius: 6px;
     border: none; background: transparent; color: var(--muted);
@@ -1621,19 +1590,11 @@
     transition: opacity .15s, color .15s, background .15s;
     flex-shrink: 0;
   }
-  .session-item:hover .session-del-btn { opacity: 1; }
+
+
   .session-del-btn:hover { background: var(--danger-soft); color: var(--danger); }
 
-  .drawer-empty {
-    padding: 30px 16px; text-align: center; color: var(--muted); font-size: 13px;
-  }
 
-  .drawer-footer {
-    padding: 10px 12px;
-    border-top: 1px solid var(--border);
-    background: var(--surface);
-    display: flex; flex-direction: column; gap: 6px;
-  }
   .clear-all-btn {
     width: 100%; padding: 8px 12px; border-radius: var(--radius-sm);
     border: 1px solid transparent; background: transparent;
@@ -1641,7 +1602,11 @@
     display: flex; align-items: center; justify-content: center; gap: 6px;
     transition: background .15s;
   }
+
+
   .clear-all-btn:hover { background: var(--danger-soft); }
+
+
 
   /* ---------- settings modal ---------- */
   .modal {
@@ -1650,7 +1615,11 @@
     z-index: 40; padding: 18px;
     backdrop-filter: blur(8px);
   }
+
+
   .modal.open { display: flex; }
+
+
   .modal-card {
     width: 100%; max-width: 400px;
     background: var(--surface); border: 1px solid var(--border);
@@ -1658,115 +1627,96 @@
     display: grid; gap: 12px;
     box-shadow: 0 8px 32px rgba(0,0,0,.22);
   }
+
+
   .modal-header {
     display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
   }
+
+
   .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+
+
   .modal-subtitle { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+
+
   .modal-section {
     display: grid; gap: 6px;
     padding: 2px 0;
   }
+
+
   .modal-section + .modal-section {
     border-top: 1px solid var(--border);
     padding-top: 10px;
   }
-  .settings-card {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--surface-2);
-    overflow: hidden;
-  }
-  .settings-card-header {
-    cursor: pointer; list-style: none;
-    padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--text);
-  }
-  .settings-card-header::-webkit-details-marker { display: none; }
-  .settings-card-header::before { content: "▸ "; color: var(--muted); }
-  .settings-card[open] .settings-card-header::before { content: "▾ "; }
-  .settings-card-body {
-    display: grid; gap: 8px; padding: 0 12px 12px;
-  }
+
+
   .modal-section.advanced { padding: 0; }
+
+
   .modal-section.advanced summary {
     cursor: pointer; list-style: none; padding: 6px 0;
   }
+
+
   .modal-section.advanced summary::-webkit-details-marker { display: none; }
+
+
   .modal-section.advanced summary::before { content: "▸ "; }
-  .modal-section.advanced[open] summary::before { content: "▾ "; }
-  .modal-section.advanced > label { margin-top: 8px; }
+
+
   .modal-section-title {
     font-size: 13px; font-weight: 600; color: var(--text);
     margin-bottom: 2px;
   }
-  .modal-card input, .modal-card select {
-    width: 100%; padding: 7px 10px;
-    border: 1px solid var(--border); border-radius: 6px;
-    font-size: 13px; color: var(--text); background: var(--bg);
-    outline: none; font-family: inherit;
-    transition: border-color .15s, box-shadow .15s;
-  }
-  .modal-card input:focus, .modal-card select:focus {
-    border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
-  }
+
+
   .modal-actions { display: flex; gap: 8px; margin-top: 4px; }
+
+
   .field { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
-  .field span { font-weight: 500; color: var(--text); }
+
+
   .input-row { display: flex; gap: 8px; align-items: center; }
-  .input-row input { flex: 1; }
-  .input-row .icon-btn { flex: 0 0 auto; padding: 8px 10px; }
+
+
 
   .btn {
     flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
     background: var(--surface-2); color: var(--text); font-size: 13px; cursor: pointer;
     transition: background .15s, border-color .15s;
   }
+
+
   .btn:hover { background: var(--surface-3); }
+
+
   .btn.primary { background: var(--accent); color: #fff; border: none; font-weight: 600; }
+
+
   .btn.primary:hover { filter: brightness(1.08); }
+
+
 
   .empty { color: var(--muted); }
 
-  .confirm-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 60;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(2px);
-  }
-  .confirm-dialog {
-    width: min(360px, calc(100vw - 32px));
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 18px 18px 14px;
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
-  }
-  .confirm-dialog h3 {
-    margin: 0 0 6px;
-    font-size: 15px;
-    color: var(--text);
-  }
-  .confirm-dialog p {
-    margin: 0 0 14px;
-    font-size: 13px;
-    color: var(--text-muted);
-    line-height: 1.45;
-  }
+
   .confirm-actions {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
   }
+
+
   .approval-hint {
     margin-top: 8px;
     font-size: 11px;
     color: var(--muted);
     line-height: 1.35;
   }
+
+
   .btn-ghost {
     border: 1px solid var(--border);
     background: var(--surface-2);
@@ -1776,6 +1726,8 @@
     font-size: 13px;
     cursor: pointer;
   }
+
+
   .btn-danger {
     border: 1px solid var(--danger);
     background: var(--danger);
@@ -1786,6 +1738,8 @@
     cursor: pointer;
   }
 
+
+
   .session-item.erasing {
     position: relative;
     overflow: hidden;
@@ -1793,10 +1747,8 @@
     pointer-events: none;
     filter: blur(0px);
   }
-  .session-item.erasing .session-title,
-  .session-item.erasing .session-meta {
-    animation: erase-text 0.5s ease forwards;
-  }
+
+
   .session-item.erasing::before {
     /* Soft smoke/cloud swipe produced by the eraser. */
     content: '';
@@ -1814,31 +1766,19 @@
     z-index: 1;
     pointer-events: none;
   }
+
+
   /* no icon here — kept as pure smoke/cloud swipe animation */
   .session-del-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
   }
-  @keyframes erase-wipe {
-    0% { opacity: 1; transform: translateX(0); filter: blur(0px); }
-    35% { opacity: 0.85; transform: translateX(-2px); filter: blur(1.2px); }
-    70% { opacity: 0.45; transform: translateX(-6px); filter: blur(3px); }
-    100% { opacity: 0; transform: translateX(-12px); filter: blur(6px); max-height: 0; margin: 0; padding: 0; }
-  }
-  @keyframes erase-text {
-    0% { opacity: 1; filter: blur(0px); text-decoration: none; }
-    30% { opacity: 0.9; filter: blur(0.8px); text-decoration: line-through; }
-    100% { opacity: 0; filter: blur(4px); }
-  }
-  @keyframes eraser-smoke {
-    0% { opacity: 0; transform: translateX(-70%) scale(0.7); }
-    30% { opacity: 0.55; transform: translateX(-25%) scale(0.95); }
-    60% { opacity: 0.75; transform: translateX(15%) scale(1.15); }
-    100% { opacity: 0; transform: translateX(70%) scale(1.35); }
-  }
+
+
 
   .field.checkbox { flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .field.checkbox input { width: 16px; height: 16px; }
+
+
   .field-hint { width: 100%; margin-left: 24px; font-size: 10.5px; color: var(--muted); }
 </style>
 
