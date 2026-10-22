@@ -66,6 +66,7 @@
   let modelsError = $state('');
   let compacting = $state(false);
   let contextTokens = $state(0);
+  let outputTokens = $state(0);
   let lastCompactTokens = $state<number | null>(null);
   let slashBusy = $state(false);
   let slashBusyLabel = $state('');
@@ -735,6 +736,7 @@
             : m,
         );
         chatState = upsertSession(chatState, { ...live, messages: msgs });
+        outputTokens = Math.round((result.summary.length + steps.join('\n').length) / 4);
         await persist();
       }
     } catch (err) {
@@ -749,6 +751,7 @@
             : m,
         );
         chatState = upsertSession(chatState, { ...live, messages: msgs });
+        outputTokens = Math.round((message.length + steps.join('\n').length) / 4);
         await persist();
       }
     } finally {
@@ -1065,7 +1068,7 @@
       {:else if slashBusy}
         Running /{slashBusyLabel}…
       {:else}
-        Enter to send · Shift+Enter for new line{contextTokens ? ` · ~${contextTokens} tok context` : ''}{lastCompactTokens ? ` · last compact ~${lastCompactTokens} tok` : ''}
+        Enter to send · Shift+Enter for new line{contextTokens ? ` · ~${contextTokens} in` : ''}{outputTokens ? ` / ~${outputTokens} out` : ''}{lastCompactTokens ? ` · compact ~${lastCompactTokens}` : ''}
       {/if}
     </div>
   </div>
