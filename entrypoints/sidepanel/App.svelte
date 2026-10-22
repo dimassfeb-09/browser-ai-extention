@@ -65,6 +65,8 @@
   let modelsLoading = $state(false);
   let modelsError = $state('');
   let compacting = $state(false);
+  let contextTokens = $state(0);
+  let lastCompactTokens = $state<number | null>(null);
   let slashBusy = $state(false);
   let slashBusyLabel = $state('');
   const openingPrompts = [
@@ -405,12 +407,14 @@
       const rendered = turns
         .map((t) => `${t.role === 'user' ? 'USER' : 'YOU'}: ${t.content}`)
         .join('\n');
+      const beforeTokens = Math.round(rendered.length / 4);
       const llm = new ChatCompletionsClient({
         apiKey: settings.apiKey,
         model: settings.model,
         baseURL: settings.baseURL,
       });
       const summary = await llm.summarize(COMPACT_SYSTEM, rendered);
+      lastCompactTokens = Math.round(summary.length / 4);
       const lastTs = Math.max(...session.messages.map((m) => m.ts));
       chatState = upsertSession(chatState, {
         ...session,
@@ -420,7 +424,7 @@
       });
       await persist();
       await notice(
-        `Compacted ${folded.length} messages into a summary. Future runs carry this brief instead of the full history:\n\n${summary}`,
+        `Compacted ${folded.length} messages (~${beforeTokens} → ~${lastCompactTokens} tokens). Future runs carry this brief instead of the full history:\n\n${summary}`,
       );
     } catch (err) {
       await notice(`Compact failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -622,7 +626,8 @@
         : '## Conversation memory\n- None yet. This is the first turn in this chat.',
       `## Goal\n${goal}`,
       '## Also sent on every step\n- Live page snapshot (URL, title, indexed interactive elements, visible text)\n- Recent step/action history and results\n- Harness notices (unchanged page, navigation, checkpoints)',
-    ].join('\n\n');
+    ].join("\\n\\n");
+    contextTokens = Math.round(injectedContext.length / 4);
     const userMsg: ChatMessage = { id: uid(), role: 'user', content: goal, ts: now, injectedContext };
     const draftMsg: ChatMessage = {
       id: uid(),
@@ -1060,7 +1065,7 @@
       {:else if slashBusy}
         Running /{slashBusyLabel}…
       {:else}
-        Enter to send · Shift+Enter for new line
+        Enter to send · Shift+Enter for new line{contextTokens ? ` · ~${contextTokens} tok context` : ''}{lastCompactTokens ? ` · last compact ~${lastCompactTokens} tok` : ''}
       {/if}
     </div>
   </div>
