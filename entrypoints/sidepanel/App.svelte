@@ -1166,8 +1166,9 @@
         <button class="icon-btn" type="button" aria-label="Close settings" onclick={() => (showSettings = false)}>✕</button>
       </div>
 
-      <div class="modal-section">
-        <div class="modal-section-title">Connection</div>
+      <details class="settings-card" open>
+        <summary class="settings-card-header">Connection</summary>
+        <div class="settings-card-body">
         <label class="field">
           <span>API Key</span>
           <input type="password" bind:value={settings.apiKey} placeholder="sk-..." autocomplete="off" />
@@ -1200,9 +1201,11 @@
           <input type="text" bind:value={settings.baseURL} placeholder="https://.../v1beta/openai" />
         </label>
       </div>
+      </details>
 
-      <div class="modal-section">
-        <div class="modal-section-title">Agent</div>
+      <details class="settings-card">
+        <summary class="settings-card-header">Advanced</summary>
+        <div class="settings-card-body">
         <label class="field">
           <span>Max steps per run (0 = no limit)</span>
           <input type="number" bind:value={settings.maxSteps} min="0" step="1" />
@@ -1218,6 +1221,7 @@
           <small class="field-hint">Jalankan aksi langsung (disimpan).</small>
         </label>
       </div>
+      </details>
 
       <div class="modal-actions">
         <button class="btn primary" onclick={saveSettingsNow}>Save settings</button>
@@ -1683,20 +1687,20 @@
     position: fixed; inset: 0; background: rgba(0,0,0,.65);
     display: none; align-items: center; justify-content: center;
     z-index: 40; padding: 18px;
-    backdrop-filter: blur(3px);
+    backdrop-filter: blur(8px);
   }
   .modal.open { display: flex; }
   .modal-card {
-    width: 100%; max-width: 360px;
+    width: 100%; max-width: 400px;
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: 12px; padding: 14px;
-    display: grid; gap: 8px;
-    box-shadow: 0 12px 40px rgba(0,0,0,.28);
+    border-radius: 8px; padding: 20px;
+    display: grid; gap: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.22);
   }
   .modal-header {
     display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
   }
-  .modal-title { font-size: 14px; font-weight: 600; margin-bottom: 0; }
+  .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
   .modal-subtitle { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
   .modal-section {
     display: grid; gap: 6px;
@@ -1706,13 +1710,37 @@
     border-top: 1px solid var(--border);
     padding-top: 10px;
   }
+  .settings-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .settings-card-header {
+    cursor: pointer; list-style: none;
+    padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--text);
+  }
+  .settings-card-header::-webkit-details-marker { display: none; }
+  .settings-card-header::before { content: "▸ "; color: var(--muted); }
+  .settings-card[open] .settings-card-header::before { content: "▾ "; }
+  .settings-card-body {
+    display: grid; gap: 8px; padding: 0 12px 12px;
+  }
+  .modal-section.advanced { padding: 0; }
+  .modal-section.advanced summary {
+    cursor: pointer; list-style: none; padding: 6px 0;
+  }
+  .modal-section.advanced summary::-webkit-details-marker { display: none; }
+  .modal-section.advanced summary::before { content: "▸ "; }
+  .modal-section.advanced[open] summary::before { content: "▾ "; }
+  .modal-section.advanced > label { margin-top: 8px; }
   .modal-section-title {
-    font-size: 11px; font-weight: 700; letter-spacing: .04em;
-    text-transform: uppercase; color: var(--muted);
+    font-size: 13px; font-weight: 600; color: var(--text);
+    margin-bottom: 2px;
   }
   .modal-card input, .modal-card select {
-    width: 100%; padding: 9px 11px;
-    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    width: 100%; padding: 7px 10px;
+    border: 1px solid var(--border); border-radius: 6px;
     font-size: 13px; color: var(--text); background: var(--bg);
     outline: none; font-family: inherit;
     transition: border-color .15s, box-shadow .15s;
