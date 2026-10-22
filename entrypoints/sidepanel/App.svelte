@@ -37,6 +37,7 @@
   import type { ChatMessage, ChatState, StepRecord } from '../../src/core/types';
   import SettingsCard from '../../src/components/SettingsCard.svelte';
   import ConfirmDialog from '../../src/components/ConfirmDialog.svelte';
+  import ActionApprovalDialog from '../../src/components/ActionApprovalDialog.svelte';
   import {
     deleteRecipe,
     findRecipe,
@@ -1086,20 +1087,14 @@
     onCancel={() => resolveConfirm(false)}
   />
 
-  {#if actionApprovalOpen}
-    <div class="confirm-backdrop" role="presentation" onclick={() => resolveActionApproval('deny')}>
-      <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="actionApprovalTitle" onclick={(e) => e.stopPropagation()}>
-        <h3 id="actionApprovalTitle">{actionApprovalTitle}</h3>
-        <p>{actionApprovalMessage}</p>
-        <div class="confirm-actions">
-          <button class="btn-ghost" type="button" onclick={() => resolveActionApproval('deny')}>Deny</button>
-          <button class="btn-ghost" type="button" onclick={() => resolveActionApproval('allow-all')}>Bypass</button>
-          <button class="btn primary" type="button" onclick={() => resolveActionApproval('allow')}>Allow</button>
-        </div>
-        <div class="approval-hint">Bypass: jalankan aksi langsung untuk run ini (tidak disimpan).</div>
-      </div>
-    </div>
-  {/if}
+  <ActionApprovalDialog
+    open={actionApprovalOpen}
+    title={actionApprovalTitle}
+    message={actionApprovalMessage}
+    onAllow={() => resolveActionApproval('allow')}
+    onBypass={() => resolveActionApproval('allow-all')}
+    onDeny={() => resolveActionApproval('deny')}
+  />
 
   <div id="historyBackdrop" class="drawer-backdrop" class:open={showHistory} onclick={() => (showHistory = false)} role="presentation"></div>
   <div id="historyDrawer" class="history-drawer" class:open={showHistory} data-testid="history">
