@@ -100,9 +100,14 @@ export interface ChatMessage {
   status?: AgentStatus;
   /** Step log lines of the run, rendered collapsed inside the bubble. */
   steps?: string[];
+  /** Structured step records for the timeline view (action + result). */
+  stepRecords?: StepRecord[];
   /** Local UI notice (slash-command feedback): rendered in the chat but
    *  NEVER handed to the model as conversation history. */
   local?: boolean;
+  /** Debug view of what this user turn injected into the agent prompt
+   *  (conversation memory). Collapsed by default in the UI. */
+  injectedContext?: string;
 }
 
 export interface ChatSession {

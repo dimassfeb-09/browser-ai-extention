@@ -1,5 +1,6 @@
 import type { ChatMessage, ChatSession, ChatState, ConversationTurn } from './types';
 import { describeAction } from './agentLoop';
+import { parseJsonLoose } from './tools';
 
 /**
  * Pure chat-state logic (ChatGPT/Gemini-style history with per-window
@@ -117,7 +118,7 @@ export function actionsDigest(steps: string[]): string {
   for (const line of steps) {
     if (!line.startsWith('action: ')) continue;
     try {
-      const parsed = JSON.parse(line.slice('action: '.length)) as {
+      const parsed = parseJsonLoose(line.slice('action: '.length)) as {
         action?: Parameters<typeof describeAction>[0];
       };
       const a = parsed.action;

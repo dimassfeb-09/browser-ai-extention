@@ -26,6 +26,7 @@ export interface LlmClient {
     notice?: string;
     /** Earlier goals + the agent's own results from this chat session. */
     conversation?: ConversationTurn[];
+    onToken?: (delta: string) => void;
   }): Promise<Action>;
 }
 

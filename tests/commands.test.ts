@@ -35,7 +35,7 @@ describe('parseSlashCommand', () => {
 describe('matchSlashCommands (suggestion menu)', () => {
   it('matches by prefix', () => {
     expect(matchSlashCommands('/co').map((c) => c.name)).toEqual(['compact']);
-    expect(matchSlashCommands('/re').map((c) => c.name)).toEqual(['reset', 'retry']);
+    expect(matchSlashCommands('/re').map((c) => c.name)).toEqual(['reset', 'retry', 'recipe']);
     expect(matchSlashCommands('/').length).toBeGreaterThanOrEqual(10);
     expect(matchSlashCommands('/zzz')).toEqual([]);
   });

@@ -50,8 +50,61 @@ const toolArgsSchema = z.object({
   question: z.string().nullish(),
 });
 
+
+/**
+ * Models sometimes append stray text (a sentence, a trailing comma, markdown)
+ * after the JSON tool arguments. Recover the first complete JSON value
+ * instead of throwing the whole run away on "Unexpected ... after JSON".
+ */
+export function extractLeadingJson(source: string): string | null {
+  const trimmed = source.trim();
+  const start = trimmed.search(/[{[]/);
+  if (start < 0) return null;
+  const open = trimmed[start];
+  const close = open === '{' ? '}' : ']';
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < trimmed.length; i++) {
+    const ch = trimmed[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === open) {
+      depth++;
+    } else if (ch === close) {
+      depth--;
+      if (depth === 0) return trimmed.slice(start, i + 1);
+    } else if (open === '{' && ch === '}' && depth === 0) {
+      // handled above
+    }
+  }
+  return null;
+}
+
+export function parseJsonLoose(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw;
+  const trimmed = raw.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const candidate = extractLeadingJson(trimmed);
+    if (!candidate) throw new SyntaxError('Unexpected non-whitespace character after JSON (no recoverable JSON value)');
+    return JSON.parse(candidate);
+  }
+}
+
 export function actionFromToolArgs(rawArgs: unknown): Action {
-  const raw = typeof rawArgs === 'string' ? JSON.parse(rawArgs) : rawArgs;
+  const raw = parseJsonLoose(rawArgs);
   const args = toolArgsSchema.parse(raw);
   switch (args.type) {
     case 'click':

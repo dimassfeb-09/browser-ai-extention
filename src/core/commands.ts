@@ -25,6 +25,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   { name: 'model', usage: '/model <name>', description: 'Show the current model, or switch to <name>', takesArg: true },
   { name: 'settings', usage: '/settings', description: 'Open AI Configuration' },
   { name: 'export', usage: '/export', description: 'Download this chat as a Markdown file' },
+  { name: 'recipe', usage: '/recipe <save|run|list|delete> …', description: 'Save, run, or manage reusable goals (macros)', takesArg: true },
 ];
 
 export interface ParsedSlashCommand {

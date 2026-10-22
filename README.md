@@ -64,7 +64,8 @@ above that works on plain JSON and is unit-testable without a browser.
   session), `/clear`, `/compact` (fold the chat so far into an
   LLM-written summary the agent keeps as its memory), `/stop`,
   `/retry`, `/model <name>`, `/settings`, `/export` (download the chat
-  as Markdown). Typing `/` shows a suggestion menu.
+  as Markdown), `/recipe` (save, run, list or delete reusable goals).
+  Typing `/` shows a suggestion menu.
 - **Step budget** — configurable per run in Settings ("Max steps per
   run", default 100, 0 = no limit). Long runs get a checkpoint notice
   every 25 steps instead of a surprise stop, and hitting the budget

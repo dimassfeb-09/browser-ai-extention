@@ -1,6 +1,6 @@
 import type { BrowserDriver, Clock, LlmClient, Logger } from './ports';
 import { noopLogger, systemClock } from './ports';
-import type { Action, AgentRunResult, ConversationTurn, StepRecord } from './types';
+import type { Action, AgentRunResult, ConversationTurn, PageSnapshot, StepRecord } from './types';
 import { hashSnapshot } from './snapshot';
 
 export interface AgentDeps {
@@ -14,6 +14,11 @@ export interface AgentDeps {
   /** Earlier exchanges in this chat (previous goals + own results), so
    *  the model remembers what it already did in earlier runs. */
   conversation?: ConversationTurn[];
+  /** Optional hook for streamed assistant tokens. */
+  onToken?: (delta: string) => void;
+  /** Optional guardrail: ask before a potentially state-changing action. Return
+   *  false to skip the action; the model will see a denied result. */
+  approveAction?: (action: Action, snapshot: PageSnapshot) => Promise<boolean>;
 }
 
 function actionKey(action: Action): string {
@@ -117,7 +122,7 @@ export async function runAgent(goal: string, deps: AgentDeps): Promise<AgentRunR
 
     let action;
     try {
-      action = await deps.llm.nextAction({ goal, snapshot, history, notice, conversation: deps.conversation });
+      action = await deps.llm.nextAction({ goal, snapshot, history, notice, conversation: deps.conversation, onToken: deps.onToken });
     } catch (err) {
       const summary = `LLM failed: ${err instanceof Error ? err.message : String(err)}`;
       logger.log('error', summary);
@@ -126,11 +131,21 @@ export async function runAgent(goal: string, deps: AgentDeps): Promise<AgentRunR
     logger.log('action', { step, action });
 
     if (action.type === 'done') {
-      history.push({ step, snapshotHash: hash, action });
+      history.push({
+        step,
+        snapshotHash: hash,
+        action,
+        result: { ok: true, message: 'Completed', level: 0 },
+      });
       return { status: 'done', summary: action.summary, history };
     }
     if (action.type === 'ask_user') {
-      history.push({ step, snapshotHash: hash, action });
+      history.push({
+        step,
+        snapshotHash: hash,
+        action,
+        result: { ok: true, message: 'Asked user', level: 0 },
+      });
       return { status: 'needs_user', summary: action.question, history };
     }
 
@@ -159,7 +174,24 @@ export async function runAgent(goal: string, deps: AgentDeps): Promise<AgentRunR
     if (action.type === 'wait') {
       await clock.sleep(Math.min(action.ms, 30_000));
       record.result = { ok: true, message: `Waited ${action.ms}ms`, level: 0 };
+      logger.log('act-result', { step, result: record.result });
       continue;
+    }
+
+    // Approval guardrail for potentially state-changing actions. Wait/done/
+    // ask_user never reach here; scroll is read-ish and stays auto.
+    const needsApproval =
+      action.type === 'click' ||
+      action.type === 'click_at' ||
+      action.type === 'type' ||
+      action.type === 'navigate';
+    if (needsApproval && deps.approveAction) {
+      const approved = await deps.approveAction(action, snapshot);
+      if (!approved) {
+        record.result = { ok: false, message: 'Action denied by user (guardrail).', level: 0 };
+        logger.log('act-result', { step, result: record.result });
+        continue;
+      }
     }
 
     try {
