@@ -38,6 +38,7 @@
   import SettingsCard from '../../src/components/SettingsCard.svelte';
   import ConfirmDialog from '../../src/components/ConfirmDialog.svelte';
   import ActionApprovalDialog from '../../src/components/ActionApprovalDialog.svelte';
+  import StepTimeline from '../../src/components/StepTimeline.svelte';
   import {
     deleteRecipe,
     findRecipe,
@@ -938,33 +939,7 @@
                 <div class="assistant-text">{@html renderMarkdown(m.content)}</div>
               </div>
               <div class="msg-time">{formatChatTime(m.ts)}{#if m.status} · {m.status}{/if}</div>
-              {#if (m.stepRecords && m.stepRecords.length) || (m.steps && m.steps.length)}
-                <details class="stream-details">
-                  <summary>Step timeline ({m.stepRecords?.length ?? m.steps?.length})</summary>
-                  {#if m.stepRecords && m.stepRecords.length}
-                    <ol class="step-timeline">
-                      {#each m.stepRecords as r (r.step)}
-                        <li class:failed={r.result && !r.result.ok}>
-                          <span class="step-index">{r.step}</span>
-                          <div class="step-line-body">
-                            <span class="step-action">{describeAction(r.action)}</span>
-                            {#if r.action.type === 'type'}
-                              <span class="step-payload">“{r.action.text.slice(0, 60)}”</span>
-                            {/if}
-                            {#if r.result}
-                              <span class="step-result {r.result.ok ? 'ok' : 'err'}">{r.result.message}</span>
-                            {:else}
-                              <span class="step-result pending">running…</span>
-                            {/if}
-                          </div>
-                        </li>
-                      {/each}
-                    </ol>
-                  {:else}
-                    <pre class="stream-pre">{m.steps.join('\n')}</pre>
-                  {/if}
-                </details>
-              {/if}
+              <StepTimeline records={m.stepRecords} steps={m.steps} />
             {/if}
           </div>
           {#if m.role === 'user'}
