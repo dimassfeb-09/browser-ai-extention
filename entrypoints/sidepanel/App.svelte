@@ -35,6 +35,8 @@
     type ParsedSlashCommand,
   } from '../../src/core/commands';
   import type { ChatMessage, ChatState, StepRecord } from '../../src/core/types';
+  import SettingsCard from '../../src/components/SettingsCard.svelte';
+  import ConfirmDialog from '../../src/components/ConfirmDialog.svelte';
   import {
     deleteRecipe,
     findRecipe,
@@ -1073,18 +1075,16 @@
     </div>
   </div>
 
-  {#if confirmOpen}
-    <div class="confirm-backdrop" role="presentation" onclick={() => resolveConfirm(false)}>
-      <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" onclick={(e) => e.stopPropagation()}>
-        <h3 id="confirmTitle">{confirmTitle}</h3>
-        <p>{confirmMessage}</p>
-        <div class="confirm-actions">
-          <button class="btn-ghost" type="button" onclick={() => resolveConfirm(false)}>Cancel</button>
-          <button class="btn-danger" type="button" onclick={() => resolveConfirm(true)}>Delete</button>
-        </div>
-      </div>
-    </div>
-  {/if}
+  <ConfirmDialog
+    open={confirmOpen}
+    title={confirmTitle}
+    message={confirmMessage}
+    confirmLabel="Delete"
+    cancelLabel="Cancel"
+    danger={true}
+    onConfirm={() => resolveConfirm(true)}
+    onCancel={() => resolveConfirm(false)}
+  />
 
   {#if actionApprovalOpen}
     <div class="confirm-backdrop" role="presentation" onclick={() => resolveActionApproval('deny')}>
@@ -1166,9 +1166,7 @@
         <button class="icon-btn" type="button" aria-label="Close settings" onclick={() => (showSettings = false)}>✕</button>
       </div>
 
-      <details class="settings-card" open>
-        <summary class="settings-card-header">Connection</summary>
-        <div class="settings-card-body">
+      <SettingsCard title="Connection" open={true}>
         <label class="field">
           <span>API Key</span>
           <input type="password" bind:value={settings.apiKey} placeholder="sk-..." autocomplete="off" />
@@ -1200,12 +1198,9 @@
           <span>Base URL</span>
           <input type="text" bind:value={settings.baseURL} placeholder="https://.../v1beta/openai" />
         </label>
-      </div>
-      </details>
+      </SettingsCard>
 
-      <details class="settings-card">
-        <summary class="settings-card-header">Advanced</summary>
-        <div class="settings-card-body">
+      <SettingsCard title="Advanced">
         <label class="field">
           <span>Max steps per run (0 = no limit)</span>
           <input type="number" bind:value={settings.maxSteps} min="0" step="1" />
@@ -1220,8 +1215,7 @@
           <span>Bypass by default</span>
           <small class="field-hint">Jalankan aksi langsung (disimpan).</small>
         </label>
-      </div>
-      </details>
+      </SettingsCard>
 
       <div class="modal-actions">
         <button class="btn primary" onclick={saveSettingsNow}>Save settings</button>
