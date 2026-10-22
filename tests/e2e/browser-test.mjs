@@ -246,10 +246,15 @@ try {
     });
   }, llmBase);
   await panel.reload();
+  // The settings modal is lazily mounted ({#if open}) — open it like a
+  // user would, verify the stored model landed, then close it again.
+  await panel.locator('#cfgBtn').click();
   await panel.waitForFunction(
-    () => document.querySelectorAll('input')[1]?.value === 'fake-model',
+    () => document.querySelector('[data-testid="models"]')?.value === 'fake-model',
     { timeout: 10_000 },
   );
+  await panel.keyboard.press('Escape');
+  await panel.waitForFunction(() => !document.querySelector('#settingsModal'), { timeout: 5_000 });
   await panel.locator('textarea').fill('Subscribe with test@example.com');
   await pageD.bringToFront(); // the agent must act on the fixture tab, not the panel
   await panel.evaluate(() => {
@@ -430,7 +435,7 @@ try {
   });
   await panel.waitForFunction(() => document.body.innerText.includes('Email filled and subscribed.'), { timeout: 30_000 });
   await sendDraft('/compact');
-  await waitMessages('Compacted 2 messages into a summary');
+  await waitMessages('Compacted 2 messages (');
   const compactText = await messagesText();
   check(
     'D5 /compact replaces the exchange with an LLM summary',
