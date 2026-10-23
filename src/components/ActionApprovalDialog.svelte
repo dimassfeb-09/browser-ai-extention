@@ -18,7 +18,7 @@
 
 {#if open}
   <div class="confirm-backdrop" role="presentation" onclick={() => onDeny?.()}>
-    <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="actionApprovalTitle" onclick={(e) => e.stopPropagation()}>
+    <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="actionApprovalTitle" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => { if (e.key === 'Escape') onDeny?.(); }}>
       <h3 id="actionApprovalTitle">{title}</h3>
       <p>{message}</p>
       <div class="confirm-actions">

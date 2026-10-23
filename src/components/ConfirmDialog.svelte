@@ -22,7 +22,7 @@
 
 {#if open}
   <div class="confirm-backdrop" role="presentation" onclick={() => onCancel?.()}>
-    <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" onclick={(e) => e.stopPropagation()}>
+    <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => { if (e.key === 'Escape') onCancel?.(); }}>
       <h3 id="confirmTitle">{title}</h3>
       <p>{message}</p>
       <div class="confirm-actions">

@@ -120,7 +120,6 @@
   .modal-card { width: 100%; max-width: 400px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; display: grid; gap: 12px; box-shadow: 0 8px 32px rgba(0,0,0,.22); }
   .modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
   .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
-  .modal-subtitle { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
   .modal-note { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
   .chev { transition: transform .15s; margin-right: 6px; vertical-align: middle; }
   .chev.open { transform: rotate(180deg); }
@@ -132,11 +131,7 @@
   .field { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
   .field span { font-weight: 500; color: var(--text); }
   .input-row { display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; }
-  .input-row input, .input-row select { flex: 1; }
   .input-row .icon-btn { flex: 0 0 auto; width: auto; margin-left: 16px; padding: 8px 10px; white-space: nowrap; position: relative; z-index: 5; }
-  .field.checkbox { flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .field.checkbox input { width: 16px; height: 16px; }
-  .field-hint { width: 100%; margin-left: 24px; font-size: 10.5px; color: var(--muted); }
   .modal-card input, .modal-card select { box-sizing: border-box; width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; color: var(--text); background: var(--bg); outline: none; font-family: inherit; transition: border-color .15s, box-shadow .15s; }
   .modal-card input:focus, .modal-card select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .status { font-size: 12px; color: var(--muted); }
