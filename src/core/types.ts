@@ -40,6 +40,18 @@ export interface PageSnapshot {
   /** Visible page text, already truncated by the collector. */
   text: string;
   capturedAt: number;
+  /** Viewport size in CSS pixels (top frame). Element `bounds` are in
+   *  this coordinate space; the screenshot is scaled from it. */
+  viewport?: { width: number; height: number };
+  /** True when the page carries substantial visual-only content
+   *  (a large <img> or <canvas>) whose content the DOM text cannot
+   *  describe — the trigger for screenshot observation. */
+  visual?: boolean;
+  /** Marked screenshot (data URL) of the visible tab, attached by the
+   *  driver when vision observation applies. Numbered badges on it
+   *  correspond to `elements` indices. Never leaves the run: hashing
+   *  and step logs ignore it. */
+  screenshot?: string;
 }
 
 /** One earlier exchange in the chat, fed back to the model so follow-up

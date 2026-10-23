@@ -2,6 +2,8 @@ import { browser } from 'wxt/browser';
 import type { BrowserDriver } from '../../core/ports';
 import type { Action, ActResult, PageSnapshot } from '../../core/types';
 import { mergeSnapshots } from '../../core/snapshot';
+import { needsVision } from '../../core/marks';
+import { captureAndMark } from './screenshot';
 import type { ContentRequest, ContentResponse } from './protocol';
 
 interface FrameRoute {
@@ -22,7 +24,10 @@ interface FrameRoute {
 export class TabContentDriver implements BrowserDriver {
   private lastRouting: FrameRoute[] = [];
 
-  constructor(private readonly tabId?: number) {}
+  constructor(
+    private readonly tabId?: number,
+    private readonly opts: { vision?: boolean } = {},
+  ) {}
 
   private async sendToFrame(
     tabId: number,
@@ -101,7 +106,23 @@ export class TabContentDriver implements BrowserDriver {
       throw new Error('No frame on this tab could be observed.');
     }
     this.lastRouting = routing;
-    return mergeSnapshots(snapshots);
+    const merged = mergeSnapshots(snapshots);
+    // Screenshot observation: only when the page plausibly hides
+    // content in pixels (needsVision) — ordinary DOM pages stay
+    // text-only and free. captureAndMark returns null when the
+    // pinned tab is not the visible one; the run continues text-only.
+    if (this.opts.vision && needsVision(merged)) {
+      // Sub-frame elements carry bounds in their own frame's viewport,
+      // which cannot be mapped onto the tab screenshot — restrict the
+      // marks to top-frame elements so no badge lands in a wrong spot.
+      const multiFrame = routing.some((r) => r.frameId !== 0);
+      const only = multiFrame
+        ? new Set(routing.flatMap((r, i) => (r.frameId === 0 ? [i] : [])))
+        : undefined;
+      const shot = await captureAndMark(tabId, merged, only);
+      if (shot) merged.screenshot = shot;
+    }
+    return merged;
   }
 
   async act(action: Action): Promise<ActResult> {

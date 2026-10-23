@@ -17,6 +17,10 @@ export interface Settings {
   recipes?: Recipe[];
   /** When true, state-changing browser actions ask for approval before running. */
   actionGuardrails?: boolean;
+  /** Screenshot observation: on pages whose content lives in pixels
+   *  (large images, canvas), attach a marked screenshot so the model
+   *  can see it. Default on; text-only pages never send one. */
+  vision?: boolean;
   /** When set, guardrails are bypassed (actions run directly) for the whole run. */
   actionGuardrailsBypass?: boolean;
 }
@@ -28,6 +32,7 @@ export const defaultSettings: Settings = {
   model: 'gpt-4o-mini',
   baseURL: 'https://api.openai.com/v1',
   maxSteps: 100,
+  vision: true,
 };
 
 export async function loadSettings(): Promise<Settings> {

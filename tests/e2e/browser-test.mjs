@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createWorker } from 'tesseract.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const extPath = path.join(root, 'output/chrome-mv3');
@@ -71,6 +72,25 @@ function fakeDecision(userContent) {
   }
   return { type: 'type', index: emailIndex, text: 'test@example.com' };
 }
+// OCR for Part E: the fake "vision model" genuinely reads the
+// question out of the screenshot pixels the agent sends — the quiz
+// fixture keeps the question ONLY in the image, so there is no other
+// channel. Local traineddata (devDependency), no network at runtime.
+const ocrLangPath = path.join(root, 'node_modules/@tesseract.js-data/eng/4.0.0_best_int');
+let ocrWorker = null;
+let imageSeenCount = 0;
+let lastQuizImage = null;
+async function ocrImage(dataUrl) {
+  ocrWorker ??= await createWorker('eng', 1, {
+    langPath: ocrLangPath,
+    cacheMethod: 'none',
+    logger: () => {},
+  });
+  const buf = Buffer.from(dataUrl.split(',')[1] ?? '', 'base64');
+  const { data } = await ocrWorker.recognize(buf);
+  return data.text;
+}
+
 const llmServer = http.createServer((req, res) => {
   // The side panel fetches cross-origin from a chrome-extension:// page;
   // without CORS headers (and an OPTIONS answer) the browser blocks it,
@@ -84,7 +104,7 @@ const llmServer = http.createServer((req, res) => {
   }
   let body = '';
   req.on('data', (c) => (body += c));
-  req.on('end', () => {
+  req.on('end', async () => {
     const parsed = JSON.parse(body);
     if (!parsed.tools) {
       // /compact's summarize call: a plain completion, no tools.
@@ -105,8 +125,43 @@ const llmServer = http.createServer((req, res) => {
       );
       return;
     }
-    const user = parsed.messages.find((m) => m.role === 'user').content;
-    const args = fakeDecision(user);
+    const rawContent = parsed.messages.find((m) => m.role === 'user').content;
+    const contentParts = Array.isArray(rawContent)
+      ? rawContent
+      : [{ type: 'text', text: rawContent }];
+    const user = contentParts.find((part) => part.type === 'text')?.text ?? '';
+    const imagePart = contentParts.find((part) => part.type === 'image_url');
+    let args;
+    if (user.includes('image-quiz')) {
+      // Part E: solve from the screenshot pixels, or admit blindness.
+      if (user.includes('answered:')) {
+        const letter = user.match(/answered:([A-D])/)?.[1] ?? '?';
+        args = { type: 'done', summary: `Answered ${letter} based on the image.` };
+      } else if (imagePart) {
+        imageSeenCount++;
+        lastQuizImage = imagePart.image_url.url;
+        const ocrText = await ocrImage(imagePart.image_url.url);
+        const qm =
+          ocrText.match(/(\d+)\s*[×x*]\s*(\d+)/) ?? ocrText.match(/What is (\d+)\D+(\d+)/i);
+        const answer = qm ? Number(qm[1]) * Number(qm[2]) : null;
+        const hit = [...ocrText.matchAll(/([A-D])\.\s*(\d+)/g)].find(
+          (o) => Number(o[2]) === answer,
+        );
+        const line = hit
+          ? user.split('\n').find((l) => l.includes('<button>') && l.includes(`"${hit[1]}"`))
+          : null;
+        args = line
+          ? { type: 'click', index: Number(line.match(/\[(\d+)\]/)[1]) }
+          : { type: 'done', summary: `OCR could not solve the question. OCR: ${ocrText.slice(0, 200)}` };
+      } else {
+        args = {
+          type: 'done',
+          summary: 'The question is inside an image and no screenshot was attached, so I cannot read it.',
+        };
+      }
+    } else {
+      args = fakeDecision(user);
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(
       JSON.stringify({
@@ -458,7 +513,97 @@ try {
   await sendDraft('/new');
   await waitMessages('New chat started');
   check('D7 /new starts a fresh chat', true);
+
+  // ---------- Part E: image-only question (screenshot vision) ----------
+  // The fixture's question and option values exist ONLY as pixels of
+  // an image. The fake model reads them via real OCR over the exact
+  // screenshot the agent sent — no DOM channel carries the answer.
+  const pageI = await context.newPage();
+  await pageI.goto(`${fixtureBase}/image-quiz.html`);
+  const quizDomText = await pageI.evaluate(() => document.body.innerText);
+  check(
+    'E0 the answer exists only in the image (DOM carries no option values)',
+    !quizDomText.includes('56') && !quizDomText.includes('54'),
+    quizDomText.replace(/\n/g, ' ').slice(0, 90),
+  );
+  await pageI.bringToFront();
+  await waitMessages('No messages yet'); // pageI's own fresh session
+  const imagesBeforeE1 = imageSeenCount;
+  await panel.locator('textarea').fill('Answer the multiple-choice question shown in the image');
+  await panel.evaluate(() => {
+    [...document.querySelectorAll('button')].find((b) => b.textContent === 'Send')?.click();
+  });
+  await pageI.waitForFunction(() => document.getElementById('verdict').textContent === 'correct', { timeout: 60_000 });
+  check('E1 agent read the question from the image and picked the correct option', true);
+  check(
+    'E1 the observe request carried a marked screenshot',
+    imageSeenCount > imagesBeforeE1,
+    `images=${imageSeenCount - imagesBeforeE1}`,
+  );
+
+  // E1b: the marks are really drawn at the elements' positions —
+  // sample the exact screenshot bytes the fake model received.
+  const probe = await pageI.evaluate(async (dataUrl) => {
+    const img = new Image();
+    await new Promise((res, rej) => {
+      img.onload = res;
+      img.onerror = rej;
+      img.src = dataUrl;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    const btn = document.querySelector('[data-letter="B"]').getBoundingClientRect();
+    const scale = img.naturalWidth / window.innerWidth;
+    const fontSize = Math.max(11, Math.round(img.naturalWidth / 80));
+    const th = fontSize + 6;
+    // Scan a horizontal strip through the badge's vertical middle:
+    // the fill is solid red, but a single point can land on the white
+    // index glyph — a strip count is robust against that.
+    const yMid = Math.round(btn.y * scale - th / 2);
+    const isRed = (d) => d[0] > 150 && d[1] < 110 && d[2] < 110;
+    let reds = 0;
+    for (let dx = 1; dx < 44; dx++) {
+      const d = ctx.getImageData(Math.round(btn.x * scale) + dx, yMid, 1, 1).data;
+      if (isRed(d)) reds++;
+    }
+    const atControl = [...ctx.getImageData(Math.round(1100 * scale), Math.round(60 * scale), 1, 1).data];
+    return { badgeRed: reds >= 3, controlRed: isRed(atControl), reds, atControl };
+  }, lastQuizImage);
+  check(
+    'E1b marks land on the elements (badge pixel probe)',
+    probe.badgeRed && !probe.controlRed,
+    JSON.stringify(probe),
+  );
+
+  // E2: negative control — vision OFF. Same quiz, same fake model, but
+  // no screenshot is attached, so the question is unreadable and the
+  // quiz must stay unsolved.
+  await panel.evaluate(async () => {
+    const s = await chrome.storage.local.get('waa:settings');
+    await chrome.storage.local.set({ 'waa:settings': { ...s['waa:settings'], vision: false } });
+  });
+  await panel.reload();
+  const pageJ = await context.newPage();
+  await pageJ.goto(`${fixtureBase}/image-quiz.html`);
+  await pageJ.bringToFront();
+  await waitMessages('No messages yet');
+  const imagesBeforeE2 = imageSeenCount;
+  await panel.locator('textarea').fill('Answer the multiple-choice question shown in the image');
+  await panel.evaluate(() => {
+    [...document.querySelectorAll('button')].find((b) => b.textContent === 'Send')?.click();
+  });
+  await panel.waitForFunction(() => document.body.innerText.includes('cannot read it'), { timeout: 30_000 });
+  const verdictJ = await pageJ.evaluate(() => document.getElementById('verdict').textContent);
+  check(
+    'E2 with vision off the image quiz stays unsolved',
+    verdictJ === 'pending' && imageSeenCount === imagesBeforeE2,
+    `verdict=${verdictJ} images=${imageSeenCount - imagesBeforeE2}`,
+  );
 } finally {
+  if (ocrWorker) await ocrWorker.terminate();
   await context.close();
   fixtureServer.close();
   llmServer.close();

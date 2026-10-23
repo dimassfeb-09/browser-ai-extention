@@ -48,6 +48,17 @@ above that works on plain JSON and is unit-testable without a browser.
   of burning tokens.
 - **Shadow DOM** — the collector walks open shadow roots.
 - **Human handoff** — `ask_user` pauses the run for captcha/OTP/payment.
+- **Screenshot vision (set-of-marks)** — when a page's content lives
+  only in pixels (a large `<img>`/`<canvas>`, or almost no readable
+  text — image questions, canvas apps, charts), the driver captures
+  the visible tab, draws a numbered badge on every snapshot element,
+  and sends the marked screenshot with the prompt; the model reads the
+  image and still acts by element index. Ordinary DOM pages never
+  send one (no wasted image tokens). Limits: capture only works while
+  the run's tab is the visible one — switch away and the run continues
+  text-only until you return; if the model/endpoint rejects images,
+  the client degrades to text-only for the rest of the run. Toggle in
+  Settings → Advanced → "Screenshot vision" (default on).
 - **Tab pinning** — a run is locked to the tab that was active when you
   pressed Send. Switch tabs or windows freely while it works; the agent
   will not follow you. If you close the target tab, the run errors out
@@ -140,6 +151,13 @@ type a goal for the active tab, Run.
   session while sharing the history list. Verified 18/18 on 2026-10-21 — it
   immediately caught a real bug the unit tests missed (a stored bare
   `fetch` reference throwing "Illegal invocation"), which is the point.
+  Later parts cover per-tab sessions, slash commands, and **Part E:
+  an image-only multiple-choice quiz** (`tests/fixtures/image-quiz.html`)
+  whose question and option values exist only as pixels — the fake
+  model reads the agent's marked screenshot with real OCR (tesseract,
+  local data) and answers from it; a negative control with vision
+  switched off must leave the same quiz unsolved. Suite total 34/34
+  (2026-10-22).
   Note: the fake LLM server sends CORS headers; a real custom Base URL
   endpoint needs the same, or a matching `host_permissions` entry.
 

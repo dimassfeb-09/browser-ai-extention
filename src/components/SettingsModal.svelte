@@ -95,6 +95,15 @@
               </select>
 
             </label>
+            <label class="field">
+              <span>Screenshot vision (image / canvas pages)</span>
+              <select bind:value={settings.vision} onchange={(e) => {
+                settings.vision = (e.currentTarget as HTMLSelectElement).value === 'true';
+              }}>
+                <option value={true}>On — model sees marked screenshots</option>
+                <option value={false}>Off — text snapshot only</option>
+              </select>
+            </label>
           </div>
         {/if}
       </div>

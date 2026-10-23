@@ -154,12 +154,33 @@ function observe(): PageSnapshot {
     elements.push({ ...r.meta, label, index: elements.length });
     lastElements.push(r.el);
   }
+  // Substantial visual-only content (a large image or canvas) means
+  // part of the page exists only as pixels — flag it so the driver can
+  // attach a screenshot for the model to actually see that content.
+  let visual = false;
+  document.querySelectorAll('img, canvas, video').forEach((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width >= 160 && r.height >= 90) visual = true;
+  });
+  // Content rendered as a CSS background image is just as invisible
+  // to the DOM text as an <img> — flag large elements carrying one.
+  if (!visual) {
+    document.querySelectorAll('body *').forEach((el) => {
+      if (visual) return;
+      const r = el.getBoundingClientRect();
+      if (r.width < 160 || r.height < 90) return;
+      const bg = getComputedStyle(el).backgroundImage;
+      if (bg && bg !== 'none') visual = true;
+    });
+  }
   return {
     url: location.href,
     title: document.title,
     elements,
     text: (document.body?.innerText ?? '').slice(0, 6_000),
     capturedAt: Date.now(),
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    visual,
   };
 }
 

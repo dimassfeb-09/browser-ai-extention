@@ -10,6 +10,13 @@ export interface OpenAiConfig {
   fetchFn?: typeof fetch;
 }
 
+type UserContent =
+  | string
+  | Array<
+      | { type: 'text'; text: string }
+      | { type: 'image_url'; image_url: { url: string } }
+    >;
+
 interface ChatCompletionResponse {
   choices?: Array<{
     message?: {
@@ -35,7 +42,43 @@ export class ChatCompletionsClient implements LlmClient {
     this.fetchFn = config.fetchFn ?? ((...args) => fetch(...args));
   }
 
+  /** Set once the endpoint rejects an image payload: the rest of
+   *  this run (this client instance) stays text-only rather than
+   *  failing every step against a non-vision model. */
+  private imageRejected = false;
+
   async nextAction(input: Parameters<LlmClient['nextAction']>[0]): Promise<Action> {
+    const text = buildUserPrompt(
+      input.goal,
+      input.snapshot,
+      input.history,
+      input.notice,
+      input.conversation,
+    );
+    const shot = input.snapshot.screenshot;
+    if (shot && !this.imageRejected) {
+      try {
+        return await this.nextActionWithContent(input, [
+          { type: 'text', text },
+          { type: 'image_url', image_url: { url: shot } },
+        ]);
+      } catch (err) {
+        // A vision-incapable model/endpoint rejects the image part —
+        // degrade to text-only for the rest of the run, don't fail it.
+        if (err instanceof Error && /image/i.test(err.message)) {
+          this.imageRejected = true;
+        } else {
+          throw err;
+        }
+      }
+    }
+    return this.nextActionWithContent(input, text);
+  }
+
+  private async nextActionWithContent(
+    input: Parameters<LlmClient['nextAction']>[0],
+    userContent: UserContent,
+  ): Promise<Action> {
     const res = await this.fetchFn(`${this.baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -48,7 +91,7 @@ export class ChatCompletionsClient implements LlmClient {
           { role: 'system', content: buildSystemPrompt() },
           {
             role: 'user',
-            content: buildUserPrompt(input.goal, input.snapshot, input.history, input.notice, input.conversation),
+            content: userContent,
           },
         ],
         tools: toolDefinitions,
@@ -158,7 +201,7 @@ export class ChatCompletionsClient implements LlmClient {
               { role: 'system', content: buildSystemPrompt() },
               {
                 role: 'user',
-                content: buildUserPrompt(input.goal, input.snapshot, input.history, input.notice, input.conversation),
+                content: userContent,
               },
             ],
             tools: toolDefinitions,

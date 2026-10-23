@@ -78,6 +78,8 @@ export function mergeSnapshots(snapshots: PageSnapshot[]): PageSnapshot {
     elements,
     text: snapshots.map((s) => s.text).filter(Boolean).join('\n'),
     capturedAt: Math.max(...snapshots.map((s) => s.capturedAt)),
+    viewport: first.viewport,
+    visual: snapshots.some((s) => s.visual),
   };
 }
 

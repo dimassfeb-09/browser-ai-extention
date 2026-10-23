@@ -108,4 +108,11 @@ describe('buildUserPrompt', () => {
     expect(out).toContain('USER: Fill randomly value');
     expect(out).toContain('YOU: (done) Filled a random value');
   });
+
+  it('mentions the attached screenshot only when the snapshot carries one', () => {
+    const withShot = buildUserPrompt('jawab soal', { ...snap(makeElements(1)), screenshot: 'data:image/jpeg;base64,AAAA' }, []);
+    expect(withShot).toContain('A screenshot of the page is attached');
+    const without = buildUserPrompt('jawab soal', snap(makeElements(1)), []);
+    expect(without).not.toContain('A screenshot of the page is attached');
+  });
 });

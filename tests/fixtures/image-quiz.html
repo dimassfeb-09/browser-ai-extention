@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Image Quiz</title></head>
+<body>
+  <h1>Quiz</h1>
+  <p>Read the question in the image and pick the correct option.</p>
+  <!-- The question AND all option values exist ONLY as pixels of this
+       image (drawn on a canvas, exported as PNG). The DOM contains no
+       question text and no numbers to cheat from: the buttons are
+       labelled with bare letters. -->
+  <img id="qimg" alt="" width="920" height="400">
+  <div id="options">
+    <button class="opt" data-letter="A">A</button>
+    <button class="opt" data-letter="B">B</button>
+    <button class="opt" data-letter="C">C</button>
+    <button class="opt" data-letter="D">D</button>
+  </div>
+  <div>State: <span id="state">none</span></div>
+  <div>Verdict: <span id="verdict">pending</span></div>
+  <script>
+    const c = document.createElement('canvas');
+    c.width = 920;
+    c.height = 400;
+    const g = c.getContext('2d');
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, 920, 400);
+    g.fillStyle = '#111111';
+    g.font = '34px monospace';
+    g.fillText('What is 7 × 8 ?', 40, 80);
+    g.font = '30px monospace';
+    g.fillText('A. 54', 60, 180);
+    g.fillText('B. 56', 480, 180);
+    g.fillText('C. 63', 60, 280);
+    g.fillText('D. 48', 480, 280);
+    document.getElementById('qimg').src = c.toDataURL('image/png');
+    document.querySelectorAll('.opt').forEach((b) => {
+      b.addEventListener('click', () => {
+        document.getElementById('state').textContent = 'answered:' + b.dataset.letter;
+        document.getElementById('verdict').textContent =
+          b.dataset.letter === 'B' ? 'correct' : 'wrong';
+      });
+    });
+  </script>
+</body>
+</html>

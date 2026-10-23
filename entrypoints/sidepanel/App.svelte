@@ -691,7 +691,7 @@
     } catch {
       // Fall back to the driver's dynamic active-tab resolution.
     }
-    const driver = new TabContentDriver(targetTabId);
+    const driver = new TabContentDriver(targetTabId, { vision: settings.vision !== false });
     const llm = new ChatCompletionsClient({
       apiKey: settings.apiKey,
       model: settings.model,
