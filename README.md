@@ -156,8 +156,11 @@ type a goal for the active tab, Run.
   whose question and option values exist only as pixels — the fake
   model reads the agent's marked screenshot with real OCR (tesseract,
   local data) and answers from it; a negative control with vision
-  switched off must leave the same quiz unsolved. Suite total 34/34
-  (2026-10-22).
+  switched off must leave the same quiz unsolved. **Part F** adds a
+  harder image (`tests/fixtures/image-quiz2.html`): a fraction sum
+  (3/4 + 1/2) and a parenthesized expression ((24/6) + (7x3)) in one
+  image, each with its own buttons — the fake model must compute both
+  from the pixels. Suite total 38/38 (2026-10-23).
   Note: the fake LLM server sends CORS headers; a real custom Base URL
   endpoint needs the same, or a matching `host_permissions` entry.
 

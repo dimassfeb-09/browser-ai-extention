@@ -132,7 +132,88 @@ const llmServer = http.createServer((req, res) => {
     const user = contentParts.find((part) => part.type === 'text')?.text ?? '';
     const imagePart = contentParts.find((part) => part.type === 'image_url');
     let args;
-    if (user.includes('image-quiz')) {
+    if (user.includes('image-quiz2')) {
+      // Part F: two harder questions in one image — a fraction sum
+      // and a parenthesized expression — each with its own buttons.
+      const q1Done = user.includes('Q1 state: answered:');
+      const q2Done = user.includes('Q2 state: answered:');
+      const clickLine = (label) => {
+        const line = user
+          .split('\n')
+          .find((l) => l.includes('<button>') && l.includes(`"${label}"`));
+        return line
+          ? { type: 'click', index: Number(line.match(/\[(\d+)\]/)[1]) }
+          : { type: 'done', summary: `No button found for ${label}` };
+      };
+      if (q1Done && q2Done) {
+        args = { type: 'done', summary: 'Both questions answered from the image.' };
+      } else if (imagePart) {
+        imageSeenCount++;
+        lastQuizImage = imagePart.image_url.url;
+        const ocr = await ocrImage(imagePart.image_url.url);
+        // OCR over the marked JPEG mangles option letters ('C.' comes
+        // back as 'Cw' or 'c.'), so options are matched token-wise:
+        // a 1-2 char letter token followed by a value token.
+        const letterTok = (tok) => tok.match(/^([A-Da-d])[.)]?w?$/)?.[1]?.toUpperCase();
+        const letterFracOptions = (text) => {
+          const toks = text.split(/\s+/);
+          const out = [];
+          for (let i = 0; i < toks.length - 1; i++) {
+            const L = letterTok(toks[i]);
+            const f = toks[i + 1].match(/^(\d+)\/(\d+)$/);
+            if (L && f) out.push([L, Number(f[1]), Number(f[2])]);
+          }
+          return out;
+        };
+        const letterIntOptions = (text) => {
+          const toks = text.split(/\s+/);
+          const out = [];
+          for (let i = 0; i < toks.length - 1; i++) {
+            const L = letterTok(toks[i]);
+            const n = toks[i + 1].match(/^(\d+)$/);
+            if (L && n) out.push([L, Number(n[1])]);
+          }
+          return out;
+        };
+        const q2At = ocr.search(/Q2/i);
+        if (!q1Done) {
+          // Q1 segment = everything before Q2. Fractions in order:
+          // two operands, then the four lettered options.
+          const seg = q2At >= 0 ? ocr.slice(0, q2At) : ocr;
+          const fracs = [...seg.matchAll(/(\d+)\s*\/\s*(\d+)/g)].map((m) => [
+            Number(m[1]),
+            Number(m[2]),
+          ]);
+          const opts = letterFracOptions(seg);
+          const [a, b] = fracs;
+          const sumN = a[0] * b[1] + b[0] * a[1];
+          const sumD = a[1] * b[1];
+          const hit = opts.find((o) => o[1] * sumD === sumN * o[2]);
+          args = hit
+            ? clickLine(`Q1 option ${hit[0]}`)
+            : { type: 'done', summary: `Q1 unsolved. OCR: ${ocr.slice(0, 200)}` };
+        } else {
+          // Q2: evaluate the parenthesized expression, then match the
+          // plain-integer options that follow it.
+          const seg = q2At >= 0 ? ocr.slice(q2At) : ocr;
+          const expr = seg.match(/\([^)]*\)\s*\+\s*\([^)]*\)/)?.[0] ?? '';
+          const clean = expr.replace(/x/gi, '*');
+          const value = /^[0-9+\-*/(). ]+$/.test(clean)
+            ? Function(`"use strict"; return (${clean})`)()
+            : null;
+          const after = seg.slice(seg.indexOf(expr) + expr.length);
+          const hit = letterIntOptions(after).find((o) => o[1] === value);
+          args = hit
+            ? clickLine(`Q2 option ${hit[0]}`)
+            : { type: 'done', summary: `Q2 unsolved (value=${value}). OCR: ${ocr.slice(0, 200)}` };
+        }
+      } else {
+        args = {
+          type: 'done',
+          summary: 'The questions are inside an image and no screenshot was attached, so I cannot read them.',
+        };
+      }
+    } else if (user.includes('image-quiz')) {
       // Part E: solve from the screenshot pixels, or admit blindness.
       if (user.includes('answered:')) {
         const letter = user.match(/answered:([A-D])/)?.[1] ?? '?';
@@ -601,6 +682,51 @@ try {
     'E2 with vision off the image quiz stays unsolved',
     verdictJ === 'pending' && imageSeenCount === imagesBeforeE2,
     `verdict=${verdictJ} images=${imageSeenCount - imagesBeforeE2}`,
+  );
+
+  // ---------- Part F: harder image math (fractions + expression) ----------
+  // Same pixel-only principle as Part E, two questions in one image:
+  // a fraction sum (3/4 + 1/2) and a parenthesized expression
+  // ((24/6) + (7x3)). The fake model OCR-reads them and computes.
+  // NOTE: Part E's negative control left vision OFF in storage —
+  // restore it first.
+  await panel.evaluate(async () => {
+    const s = await chrome.storage.local.get('waa:settings');
+    await chrome.storage.local.set({ 'waa:settings': { ...s['waa:settings'], vision: true } });
+  });
+  await panel.reload();
+  // Wait until the reloaded panel is fully mounted (settings loaded,
+  // tab-follow listener live) BEFORE pageK activates — otherwise the
+  // activation event races the reload and the panel stays on the
+  // previous tab's session.
+  await panel.locator('#cfgBtn').click();
+  await panel.waitForFunction(
+    () => document.querySelector('[data-testid="models"]')?.value,
+    { timeout: 10_000 },
+  );
+  await panel.keyboard.press('Escape');
+  await panel.waitForFunction(() => !document.querySelector('#settingsModal'), { timeout: 5_000 });
+  const pageK = await context.newPage();
+  await pageK.goto(`${fixtureBase}/image-quiz2.html`);
+  const quiz2DomText = await pageK.evaluate(() => document.body.innerText);
+  check(
+    'F0 the harder answers exist only in the image',
+    !quiz2DomText.includes('5/4') && !quiz2DomText.includes('25'),
+    quiz2DomText.replace(/\n/g, ' ').slice(0, 90),
+  );
+  await pageK.bringToFront();
+  await waitMessages('No messages yet'); // pageK's own fresh session
+  const imagesBeforeF = imageSeenCount;
+  await panel.locator('textarea').fill('Answer both math questions in the image');
+  await panel.evaluate(() => {
+    [...document.querySelectorAll('button')].find((b) => b.textContent === 'Send')?.click();
+  });
+  await pageK.waitForFunction(() => document.getElementById('verdict').textContent === 'correct', { timeout: 90_000 });
+  check('F1 agent solved the fraction sum AND the expression from the image', true);
+  check(
+    'F2 the run observed with screenshots while solving',
+    imageSeenCount - imagesBeforeF >= 2,
+    `images=${imageSeenCount - imagesBeforeF}`,
   );
 } finally {
   if (ocrWorker) await ocrWorker.terminate();
