@@ -18,6 +18,11 @@ export interface ElementRef {
   label: string;
   /** Current value for inputs/selects/textareas. */
   value?: string;
+  /** Selection state for checkboxes, radios and options — native
+   *  (`input.checked`) or ARIA (`aria-checked` / `aria-selected`).
+   *  Modern form builders (Google Forms et al.) render these as plain
+   *  divs, so without this the model cannot tell what is selected. */
+  checked?: boolean;
   /** The control's type attribute (text, email, checkbox, date, ...) for form fields. */
   inputType?: string;
   disabled?: boolean;

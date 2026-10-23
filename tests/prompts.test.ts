@@ -116,3 +116,15 @@ describe('buildUserPrompt', () => {
     expect(without).not.toContain('A screenshot of the page is attached');
   });
 });
+
+describe('formatSnapshot checked state (ARIA widgets)', () => {
+  it('marks a selected radio/checkbox as CHECKED and leaves unselected ones unmarked', () => {
+    const els: ElementRef[] = [
+      { index: 0, tag: 'div', role: 'radio', label: 'Kuning', checked: true, fingerprint: { tag: 'div', label: 'Kuning', cssPath: 'body > div > div' } },
+      { index: 1, tag: 'div', role: 'radio', label: 'Merah', checked: false, fingerprint: { tag: 'div', label: 'Merah', cssPath: 'body > div > div' } },
+    ];
+    const lines = formatSnapshot(snap(els)).split('\n');
+    expect(lines.find((l) => l.includes('Kuning'))).toContain('CHECKED');
+    expect(lines.find((l) => l.includes('Merah'))).not.toContain('CHECKED');
+  });
+});

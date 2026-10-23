@@ -15,7 +15,7 @@ import type { ContentRequest, ContentResponse } from '../src/adapters/chrome/pro
  */
 
 const INTERACTIVE =
-  'a[href], button, input, select, textarea, [role="button"], [role="link"], [contenteditable="true"], [tabindex]';
+  'a[href], button, input, select, textarea, [role="button"], [role="link"], [role="radio"], [role="checkbox"], [role="option"], [role="switch"], [contenteditable="true"], [tabindex]';
 
 let lastElements: HTMLElement[] = [];
 
@@ -109,7 +109,11 @@ function collectRaw(): Array<{ meta: Omit<ElementRef, 'index'>; el: HTMLElement 
     const rect = el.getBoundingClientRect();
     const input = el as HTMLInputElement;
     const label = labelOf(el);
-    const rowHost = el.closest('tr, [role="row"], li');
+    // [role="listitem"] is the question-block container in Google
+    // Forms — without it, every radio option arrives context-free
+    // ("A", "B", …) and the model cannot tell which question it
+    // answers.
+    const rowHost = el.closest('tr, [role="row"], li, [role="listitem"]');
     let context: string | undefined;
     if (rowHost && rowHost !== el) {
       const t = (rowHost.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 90);
@@ -127,6 +131,14 @@ function collectRaw(): Array<{ meta: Omit<ElementRef, 'index'>; el: HTMLElement 
           (el as HTMLInputElement).disabled === true ||
           el.getAttribute('aria-disabled') === 'true',
         value: 'value' in input && input.type !== 'password' ? String(input.value ?? '') : undefined,
+        checked:
+          el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')
+            ? el.checked
+            : el.getAttribute('aria-checked') != null
+              ? el.getAttribute('aria-checked') === 'true'
+              : el.getAttribute('aria-selected') != null
+                ? el.getAttribute('aria-selected') === 'true'
+                : undefined,
         placeholder: input.placeholder || undefined,
         href: el instanceof HTMLAnchorElement ? el.href : undefined,
         fingerprint: { tag: el.tagName.toLowerCase(), label, cssPath: cssPathOf(el) },

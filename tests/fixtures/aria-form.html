@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>ARIA Form</title>
+<style>
+  body { font-family: sans-serif; margin: 16px; }
+  .q { font-weight: bold; margin: 14px 0 6px; }
+  .opt { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  [role="radio"], [role="checkbox"] {
+    width: 18px; height: 18px; border: 2px solid #555; flex: none;
+  }
+  [role="radio"] { border-radius: 50%; }
+  [aria-checked="true"] { background: #7ab; }
+</style>
+</head>
+<body>
+<h1>Kuesioner</h1>
+
+<!-- Google Forms renders choices exactly like this: plain divs with
+     role="radio"/"checkbox", an aria-label, a data-value, NO tabindex
+     and no native input anywhere. The framework's JS flips
+     aria-checked on click — mimicked by the script below. -->
+<div role="listitem">
+  <div class="q">Warna favorit? *</div>
+  <div role="radiogroup">
+    <div class="opt"><div role="radio" aria-label="Merah" aria-checked="false" data-value="Merah"></div><span>Merah</span></div>
+    <div class="opt"><div role="radio" aria-label="Kuning" aria-checked="false" data-value="Kuning"></div><span>Kuning</span></div>
+    <div class="opt"><div role="radio" aria-label="Biru" aria-checked="false" data-value="Biru"></div><span>Biru</span></div>
+    <div class="opt"><div role="radio" aria-label="Hijau" aria-checked="false" data-value="Hijau"></div><span>Hijau</span></div>
+  </div>
+</div>
+
+<div role="listitem">
+  <div class="q">Hobi (boleh lebih dari satu)</div>
+  <div class="opt"><div role="checkbox" aria-label="Membaca" aria-checked="false" data-value="Membaca"></div><span>Membaca</span></div>
+  <div class="opt"><div role="checkbox" aria-label="Bersepeda" aria-checked="false" data-value="Bersepeda"></div><span>Bersepeda</span></div>
+</div>
+
+<p id="state">Q1: - | Q2: -</p>
+
+<script>
+  function render() {
+    const q1 = document.querySelector('[role="radio"][aria-checked="true"]')?.dataset.value ?? '-';
+    const q2 = [...document.querySelectorAll('[role="checkbox"][aria-checked="true"]')]
+      .map((x) => x.dataset.value).join(',') || '-';
+    document.getElementById('state').textContent = `Q1: ${q1} | Q2: ${q2}`;
+  }
+  document.querySelectorAll('[role="radio"]').forEach((r) => {
+    r.addEventListener('click', () => {
+      r.closest('[role="radiogroup"]')
+        .querySelectorAll('[role="radio"]')
+        .forEach((x) => x.setAttribute('aria-checked', 'false'));
+      r.setAttribute('aria-checked', 'true');
+      render();
+    });
+  });
+  document.querySelectorAll('[role="checkbox"]').forEach((c) => {
+    c.addEventListener('click', () => {
+      c.setAttribute('aria-checked', c.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+      render();
+    });
+  });
+</script>
+</body>
+</html>

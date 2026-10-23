@@ -35,6 +35,7 @@ export function formatSnapshot(snapshot: PageSnapshot): string {
     const bits = [`[${el.index}] <${tag}>`, JSON.stringify(el.label)];
     if (el.context && el.context !== el.label) bits.push(`ctx=${JSON.stringify(el.context)}`);
     if (el.disabled) bits.push('DISABLED');
+    if (el.checked) bits.push('CHECKED');
     if (el.value) bits.push(`value=${JSON.stringify(el.value)}`);
     if (el.placeholder) bits.push(`placeholder=${JSON.stringify(el.placeholder)}`);
     if (el.href) bits.push(`href=${el.href}`);

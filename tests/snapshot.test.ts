@@ -103,3 +103,12 @@ describe('findByFingerprint', () => {
     expect(findByFingerprint(elements, { tag: 'button', label: 'Hilang', cssPath: 'x' })).toBeNull();
   });
 });
+
+describe('hashSnapshot', () => {
+  it('changes when only a checked state flips (radio selection is a page change)', () => {
+    const base = el('Kuning', 'body > div');
+    const a = snapshot([{ ...base, index: 0, checked: false }]);
+    const b = snapshot([{ ...base, index: 0, checked: true }]);
+    expect(hashSnapshot(a)).not.toBe(hashSnapshot(b));
+  });
+});

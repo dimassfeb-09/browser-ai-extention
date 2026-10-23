@@ -160,7 +160,17 @@ type a goal for the active tab, Run.
   harder image (`tests/fixtures/image-quiz2.html`): a fraction sum
   (3/4 + 1/2) and a parenthesized expression ((24/6) + (7x3)) in one
   image, each with its own buttons — the fake model must compute both
-  from the pixels. Suite total 38/38 (2026-10-23).
+  from the pixels. **Part G** covers ARIA form widgets
+  (`tests/fixtures/aria-form.html`): Google Forms renders multiple
+  choice as plain `div[role="radio"]`/`div[role="checkbox"]` elements
+  with no native input and no tabindex — a live probe against a real
+  Google Form showed the collector's interactive selector missed
+  them entirely, leaving the agent blind to every option. The
+  collector now indexes radio/checkbox/option/switch roles, reports
+  their selection state (`checked`, rendered as `CHECKED` and part of
+  the snapshot hash), and attaches the enclosing
+  `[role="listitem"]` question block as context. Suite total 45/45
+  (2026-10-23).
   Note: the fake LLM server sends CORS headers; a real custom Base URL
   endpoint needs the same, or a matching `host_permissions` entry.
 

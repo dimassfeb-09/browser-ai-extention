@@ -728,6 +728,52 @@ try {
     imageSeenCount - imagesBeforeF >= 2,
     `images=${imageSeenCount - imagesBeforeF}`,
   );
+
+  // ---------- Part G: ARIA widgets (Google Forms-style choices) ----------
+  // Google Forms renders multiple choice as plain divs with
+  // role="radio"/"checkbox" (no native input, no tabindex). Before
+  // the collector learned those roles, the agent was blind to every
+  // option. The fixture mimics the framework: clicks flip
+  // aria-checked, radios are group-exclusive.
+  const pageAria = await context.newPage();
+  await pageAria.goto(`${fixtureBase}/aria-form.html`);
+  const tabAria = await tabIdFor('aria-form');
+  const snapAria = await observe(tabAria);
+  const radiosAria = snapAria.elements.filter((e) => e.role === 'radio');
+  const boxesAria = snapAria.elements.filter((e) => e.role === 'checkbox');
+  check('G0 snapshot captures div[role=radio] options (Google Forms style)', radiosAria.length === 4, `radios=${radiosAria.length}`);
+  check('G0 snapshot captures div[role=checkbox] options', boxesAria.length === 2, `boxes=${boxesAria.length}`);
+  const kuningAria = radiosAria.find((e) => e.label === 'Kuning');
+  check(
+    'G0 a radio carries its question as context (listitem)',
+    Boolean(kuningAria?.context?.includes('Warna favorit')),
+    kuningAria?.context,
+  );
+  check(
+    'G0 all options start unchecked',
+    radiosAria.every((e) => e.checked === false) && boxesAria.every((e) => e.checked === false),
+  );
+  await send(tabAria, { kind: 'waa:act', action: { type: 'click', index: kuningAria.index } });
+  await sleep(200);
+  const stateAria = await pageAria.evaluate(() => document.getElementById('state').textContent);
+  check('G1 clicking a radio selects it in the page', stateAria.includes('Q1: Kuning'), stateAria);
+  const snapAria2 = await observe(tabAria);
+  const kuning2 = snapAria2.elements.find((e) => e.role === 'radio' && e.label === 'Kuning');
+  const merah2 = snapAria2.elements.find((e) => e.role === 'radio' && e.label === 'Merah');
+  check(
+    'G1 re-observe reports checked=true on the picked radio only',
+    kuning2?.checked === true && merah2?.checked === false,
+    `kuning=${kuning2?.checked} merah=${merah2?.checked}`,
+  );
+  const membacaAria = snapAria2.elements.find((e) => e.role === 'checkbox' && e.label === 'Membaca');
+  await send(tabAria, { kind: 'waa:act', action: { type: 'click', index: membacaAria.index } });
+  await sleep(200);
+  const snapAria3 = await observe(tabAria);
+  check(
+    'G2 checkbox click toggles its checked state in the snapshot',
+    snapAria3.elements.find((e) => e.role === 'checkbox' && e.label === 'Membaca')?.checked === true,
+  );
+
 } finally {
   if (ocrWorker) await ocrWorker.terminate();
   await context.close();
