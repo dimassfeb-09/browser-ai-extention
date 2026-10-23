@@ -1,9 +1,37 @@
 import type { ElementRef, Fingerprint, PageSnapshot } from './types';
 
+/**
+ * Which band of the page an element sits in relative to the viewport at
+ * capture time: 0 = visible now, 1 = below the fold, 2 = scrolled past
+ * (above). `bounds` are viewport-relative (getBoundingClientRect), so
+ * this is pure geometry. Elements without bounds, or snapshots without
+ * a viewport, are band 0 — no windowing information available.
+ */
+export function viewportBand(
+  el: ElementRef,
+  viewport?: { width: number; height: number },
+): 0 | 1 | 2 {
+  if (!viewport || !el.bounds) return 0;
+  if (el.bounds.y + el.bounds.height <= 0) return 2;
+  if (el.bounds.y >= viewport.height) return 1;
+  return 0;
+}
+
 /** Stable-enough hash of what the agent "sees"; used for stuck detection. */
 export function hashSnapshot(snapshot: PageSnapshot): string {
+  // The visible window is part of what the agent sees: scrolling that
+  // brings new elements into view IS a page change, even when the DOM
+  // itself is identical. Without this, every productive scroll on a
+  // long form counted as "unchanged" and fed the stuck detector.
+  const visibleWindow = snapshot.viewport
+    ? snapshot.elements
+        .filter((el) => viewportBand(el, snapshot.viewport) === 0)
+        .map((el) => el.index)
+        .join(',')
+    : '';
   const parts = [
     snapshot.url,
+    `win:${visibleWindow}`,
     ...snapshot.elements.map(
       (el) => `${el.index}:${el.tag}:${el.label}:${el.value ?? ''}:${el.checked ?? ''}:${el.state ?? ''}:${el.context ?? ''}`,
     ),

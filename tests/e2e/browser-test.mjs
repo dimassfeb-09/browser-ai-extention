@@ -240,6 +240,25 @@ const llmServer = http.createServer((req, res) => {
           summary: 'The question is inside an image and no screenshot was attached, so I cannot read it.',
         };
       }
+    } else if (user.includes('long-form')) {
+      // Part I: a form far longer than the snapshot render budget. The
+      // last question's correct option and the submit button sit at the
+      // very bottom of the DOM — with a DOM-order render they could
+      // never enter the prompt at all; with the viewport window they
+      // appear once scrolled into view. Strategy mirrors a real model:
+      // use what is visible, scroll when the target is not.
+      const lines = user.split('\n');
+      const optLine = lines.find((l) => l.includes('"Benar"') && l.includes('Soal ke-40'));
+      const submitLine = lines.find((l) => l.includes('<button>') && l.includes('"Kirim Jawaban"'));
+      if (user.includes('Form terkirim')) {
+        args = { type: 'done', summary: 'Long form submitted.' };
+      } else if (optLine && !optLine.includes('CHECKED')) {
+        args = { type: 'click', index: Number(optLine.match(/\[(\d+)\]/)[1]) };
+      } else if (submitLine) {
+        args = { type: 'click', index: Number(submitLine.match(/\[(\d+)\]/)[1]) };
+      } else {
+        args = { type: 'scroll', direction: 'down', amount: 800 };
+      }
     } else {
       args = fakeDecision(user);
     }
@@ -827,6 +846,30 @@ try {
     'H2 Radix-style checkbox click flips its derived checked state',
     snapHxx4.elements.find((e) => e.label === 'Terima Newsletter')?.checked === true,
   );
+
+  // ---------- Part I: long form — the render window follows the scroll ----------
+  // Regression for a real field failure: on a 230-element Google Form
+  // the render budget ran out mid-form, the notice told the model to
+  // scroll to reveal the rest, but the render was a fixed DOM-order
+  // prefix — scrolling changed nothing it could see, and the run died
+  // as "stuck" after 17 scrolls. Here the fake model can only finish
+  // if scrolling genuinely moves the window: the last question and the
+  // submit button start far outside the initial render.
+  const pageLong = await context.newPage();
+  await pageLong.goto(`${fixtureBase}/long-form.html`);
+  const tabLong = await tabIdFor('long-form');
+  const snapLong = await observe(tabLong);
+  check('I0 long form collects all 40x4 options + submit', snapLong.elements.length >= 161, `elements=${snapLong.elements.length}`);
+  await pageLong.bringToFront();
+  await waitMessages('No messages yet'); // pageLong's own fresh session
+  await panel.locator('textarea').fill('Answer the last question with Benar and submit the form');
+  await panel.evaluate(() => {
+    [...document.querySelectorAll('button')].find((b) => b.textContent === 'Send')?.click();
+  });
+  await pageLong.waitForFunction(() => document.body.innerText.includes('Form terkirim'), { timeout: 90_000 });
+  check('I1 agent scrolled the window to the bottom, answered Q40 and submitted', true);
+  await panel.waitForFunction(() => document.body.innerText.includes('Long form submitted.'), { timeout: 15_000 });
+  check('I2 run finished done (not stuck)', true);
 
 } finally {
   if (ocrWorker) await ocrWorker.terminate();

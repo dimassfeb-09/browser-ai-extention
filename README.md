@@ -185,6 +185,19 @@ type a goal for the active tab, Run.
   clickable div, a jsaction-wired div, and a data-state-only
   checkbox; plain content must stay uncollected. Suite total 54/54
   (2026-10-23).
+  **Part I** covers long forms and the snapshot render window: the
+  rendered snapshot is windowed by viewport geometry
+  (`viewportBand` in `src/core/snapshot.ts`) — elements on screen
+  render first, then below the fold, then scrolled-past — and the
+  snapshot hash includes the visible window, so a productive scroll
+  counts as a page change. Before this, the render was a fixed
+  DOM-order prefix: on a real 230-element form the budget ran out
+  mid-form, the notice told the model to scroll to reveal the rest,
+  scrolling changed nothing it could see, and the run died as
+  "stuck". The fixture (`tests/fixtures/long-form.html`, 40 questions)
+  puts the last question and the submit button far outside the
+  initial render; the fake model must scroll the window down to
+  reach them. Suite total 57/57 (2026-10-23).
   Note: the fake LLM server sends CORS headers; a real custom Base URL
   endpoint needs the same, or a matching `host_permissions` entry.
 

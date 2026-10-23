@@ -1,4 +1,5 @@
-import type { ConversationTurn, PageSnapshot, StepRecord } from './types';
+import { viewportBand } from './snapshot';
+import type { ConversationTurn, ElementRef, PageSnapshot, StepRecord } from './types';
 
 export function buildSystemPrompt(): string {
   return [
@@ -27,9 +28,19 @@ const MAX_SNAPSHOT_CHARS = 16_000;
  * bounds (~250 chars/element in JSON) used to eat the old 12k JSON budget
  * and silently drop elements at the end of the DOM — including, in
  * practice, the very button the agent was looking for.
+ *
+ * When viewport geometry is available the render is a WINDOW that
+ * follows the scroll position: elements on screen render first, then
+ * the ones below the fold, then the ones scrolled past. A long form
+ * overflows the budget at any single scroll position, but scrolling
+ * moves the window, so every element is reachable — which is exactly
+ * what the truncation notice below promises. (Before this, the render
+ * was a fixed DOM-order prefix and scrolling changed nothing the model
+ * could see; a real run scrolled 17 times hunting for elements that
+ * could never appear, until the stuck detector killed it.)
  */
 export function formatSnapshot(snapshot: PageSnapshot): string {
-  const allLines = snapshot.elements.map((el) => {
+  const renderLine = (el: ElementRef): string => {
     const tag =
       el.tag === 'input' && el.inputType ? `input type="${el.inputType}"` : el.tag;
     const bits = [`[${el.index}] <${tag}>`, JSON.stringify(el.label)];
@@ -41,22 +52,49 @@ export function formatSnapshot(snapshot: PageSnapshot): string {
     if (el.placeholder) bits.push(`placeholder=${JSON.stringify(el.placeholder)}`);
     if (el.href) bits.push(`href=${el.href}`);
     return bits.join(' ');
-  });
+  };
+
+  const banded = snapshot.elements.map((el) => ({
+    band: viewportBand(el, snapshot.viewport),
+    line: renderLine(el),
+  }));
+  const ordered = snapshot.viewport
+    ? [...banded].sort((a, b) => a.band - b.band)
+    : banded;
 
   const lines: string[] = [];
   let chars = 0;
   let shown = 0;
-  for (const line of allLines) {
-    if (shown >= MAX_ELEMENT_LINES || chars + line.length > MAX_SNAPSHOT_CHARS) break;
-    lines.push(line);
-    chars += line.length;
-    shown++;
+  let stopped = false;
+  const hiddenByBand: [number, number, number] = [0, 0, 0];
+  for (const item of ordered) {
+    // The render is a strict window: once the budget is spent, the
+    // rest is hidden (and counted per band for the notice).
+    if (!stopped && shown < MAX_ELEMENT_LINES && chars + item.line.length <= MAX_SNAPSHOT_CHARS) {
+      lines.push(item.line);
+      chars += item.line.length;
+      shown++;
+    } else {
+      stopped = true;
+      hiddenByBand[item.band]++;
+    }
   }
-  const hidden = allLines.length - shown;
+  const hidden = hiddenByBand[0] + hiddenByBand[1] + hiddenByBand[2];
   if (hidden > 0) {
-    lines.push(
-      `… +${hidden} more elements not shown (snapshot budget) — scroll or act on visible elements to reveal them.`,
-    );
+    if (snapshot.viewport) {
+      const where: string[] = [];
+      if (hiddenByBand[1] > 0)
+        where.push(`${hiddenByBand[1]} below the viewport — scroll down to reveal them`);
+      if (hiddenByBand[2] > 0)
+        where.push(`${hiddenByBand[2]} above the viewport — scroll up to reveal them`);
+      if (hiddenByBand[0] > 0)
+        where.push(`${hiddenByBand[0]} in view but over the snapshot budget`);
+      lines.push(`… +${hidden} more elements not shown (${where.join('; ')}).`);
+    } else {
+      lines.push(
+        `… +${hidden} more elements not shown (snapshot budget) — scroll or act on visible elements to reveal them.`,
+      );
+    }
   }
 
   return [

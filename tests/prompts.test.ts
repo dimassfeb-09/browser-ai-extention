@@ -66,6 +66,53 @@ describe('formatSnapshot', () => {
   });
 });
 
+describe('formatSnapshot viewport windowing', () => {
+  const VP = { width: 1000, height: 800 };
+  function el(index: number, label: string, y: number): ElementRef {
+    return {
+      index,
+      tag: 'button',
+      label,
+      fingerprint: { tag: 'button', label, cssPath: `body > button:nth-of-type(${index})` },
+      bounds: { x: 10, y, width: 120, height: 32 },
+    };
+  }
+  function snapVp(elements: ElementRef[]): PageSnapshot {
+    return { url: 'https://example.com/', title: 'App', elements, text: 'isi', capturedAt: 0, viewport: VP };
+  }
+
+  it('renders the visible band first, then below the fold, then scrolled-past', () => {
+    const out = formatSnapshot(
+      snapVp([el(0, 'Bawah', 5000), el(1, 'Terlihat', 100), el(2, 'Lewat', -500)]),
+    );
+    const pos = (s: string) => out.indexOf(s);
+    expect(pos('Terlihat')).toBeGreaterThanOrEqual(0);
+    expect(pos('Terlihat')).toBeLessThan(pos('Bawah'));
+    expect(pos('Bawah')).toBeLessThan(pos('Lewat'));
+    // Indices are untouched by the render order — actions still map.
+    expect(out).toContain('[0] <button> "Bawah"');
+    expect(out).toContain('[1] <button> "Terlihat"');
+  });
+
+  it('when the budget overflows, below-fold elements are hidden with a scroll-down notice', () => {
+    // Fat visible elements exhaust the 16k render budget on their own.
+    const fat = Array.from({ length: 130 }, (_, i) => el(i, `Tombol ${'x'.repeat(110)} ${i}`, 10 + i));
+    const below = el(999, 'TargetBawah', 9000);
+    const out = formatSnapshot(snapVp([...fat, below]));
+    expect(out).not.toContain('TargetBawah');
+    expect(out).toContain('below the viewport');
+    expect(out).toContain('scroll down to reveal them');
+  });
+
+  it('scrolling the window (same DOM, new bounds) changes which elements render', () => {
+    const before = formatSnapshot(snapVp([el(0, 'Pertama', 100), el(1, 'Terakhir', 9000)]));
+    const after = formatSnapshot(snapVp([el(0, 'Pertama', -9000), el(1, 'Terakhir', 100)]));
+    // After the scroll, the last element leads the render.
+    expect(after.indexOf('Terakhir')).toBeLessThan(after.indexOf('Pertama'));
+    expect(before.indexOf('Pertama')).toBeLessThan(before.indexOf('Terakhir'));
+  });
+});
+
 describe('buildUserPrompt', () => {
   it('includes the act result MESSAGES, not just ok/failed (the model needs the why)', () => {
     const out = buildUserPrompt('isi form', snap(makeElements(1)), [

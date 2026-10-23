@@ -118,4 +118,20 @@ describe('hashSnapshot', () => {
     const b = snapshot([{ ...base, index: 0, state: 'expanded' }]);
     expect(hashSnapshot(a)).not.toBe(hashSnapshot(b));
   });
+
+  it('changes when the visible window moves (a productive scroll is a page change)', () => {
+    const VP = { width: 1000, height: 800 };
+    const at = (y: number): ElementRef => ({
+      ...el('Soal', 'body > div'),
+      index: 0,
+      bounds: { x: 0, y, width: 100, height: 40 },
+    });
+    const top = { ...snapshot([at(100)]), viewport: VP };
+    const scrolled = { ...snapshot([at(5000)]), viewport: VP };
+    expect(hashSnapshot(top)).not.toBe(hashSnapshot(scrolled));
+    // Same window, same page: stable.
+    expect(hashSnapshot(top)).toBe(hashSnapshot({ ...snapshot([at(100)]), viewport: VP }));
+    // Without viewport geometry the window term is empty (legacy snapshots).
+    expect(hashSnapshot(snapshot([at(100)]))).toBe(hashSnapshot(snapshot([at(5000)])));
+  });
 });

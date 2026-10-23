@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Long Form</title>
+<style>
+  body { font-family: sans-serif; margin: 16px; }
+  .qblock { padding: 20px 0 26px; border-bottom: 1px solid #bbb; min-height: 200px; }
+  .q { font-weight: bold; margin-bottom: 10px; line-height: 1.5; }
+  .opt { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  [role="radio"] { width: 18px; height: 18px; border: 2px solid #555; border-radius: 50%; flex: none; }
+  [aria-checked="true"] { background: #7ab; }
+  #kirim { margin: 28px 0 60px; padding: 10px 22px; font-size: 15px; }
+</style>
+</head>
+<body>
+<h1>Formulir Panjang</h1>
+<div id="questions"></div>
+<button id="kirim" type="button">Kirim Jawaban</button>
+<p id="state">submitted: no</p>
+
+<script>
+  // 40 questions, generated deterministically. Each question text is
+  // deliberately long: with the question repeated as ctx on all four
+  // options, the full element list far exceeds the snapshot render
+  // budget — the last questions and the submit button only enter the
+  // rendered window after scrolling, which is the behaviour under test.
+  const FILLER =
+    'Pilihlah satu jawaban yang paling tepat menurut bacaan dan pemahaman Anda terhadap materi yang sudah disampaikan sebelumnya pada sesi pembelajaran.';
+  const host = document.getElementById('questions');
+  for (let n = 1; n <= 40; n++) {
+    const block = document.createElement('div');
+    block.className = 'qblock';
+    block.setAttribute('role', 'listitem');
+    const q = document.createElement('div');
+    q.className = 'q';
+    q.textContent = `Soal ke-${n}: ${FILLER}`;
+    block.appendChild(q);
+    const group = document.createElement('div');
+    group.setAttribute('role', 'radiogroup');
+    for (const label of ['Benar', 'Salah A', 'Salah B', 'Salah C']) {
+      const row = document.createElement('div');
+      row.className = 'opt';
+      const radio = document.createElement('div');
+      radio.setAttribute('role', 'radio');
+      radio.setAttribute('aria-label', label);
+      radio.setAttribute('aria-checked', 'false');
+      radio.dataset.value = label;
+      const span = document.createElement('span');
+      span.textContent = label;
+      row.append(radio, span);
+      group.appendChild(row);
+    }
+    block.appendChild(group);
+    host.appendChild(block);
+  }
+  document.querySelectorAll('[role="radio"]').forEach((r) => {
+    r.addEventListener('click', () => {
+      r.closest('[role="radiogroup"]')
+        .querySelectorAll('[role="radio"]')
+        .forEach((x) => x.setAttribute('aria-checked', 'false'));
+      r.setAttribute('aria-checked', 'true');
+    });
+  });
+  document.getElementById('kirim').addEventListener('click', () => {
+    document.body.innerHTML = '<h1>Form terkirim. Terima kasih.</h1><p id="state">submitted: yes</p>';
+  });
+</script>
+</body>
+</html>
