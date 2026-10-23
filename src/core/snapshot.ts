@@ -5,7 +5,7 @@ export function hashSnapshot(snapshot: PageSnapshot): string {
   const parts = [
     snapshot.url,
     ...snapshot.elements.map(
-      (el) => `${el.index}:${el.tag}:${el.label}:${el.value ?? ''}:${el.checked ?? ''}:${el.context ?? ''}`,
+      (el) => `${el.index}:${el.tag}:${el.label}:${el.value ?? ''}:${el.checked ?? ''}:${el.state ?? ''}:${el.context ?? ''}`,
     ),
   ];
   let hash = 5381;

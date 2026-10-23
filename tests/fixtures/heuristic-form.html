@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Heuristic Form</title>
+<style>
+  body { font-family: sans-serif; margin: 16px; }
+  .card { border: 1px solid #999; padding: 10px; margin: 6px 0; width: 260px; }
+  .card.selected { background: #cfe8ff; }
+  .plain { color: #333; }
+</style>
+</head>
+<body>
+<h1>Framework X — kontrol tanpa pola baku</h1>
+
+<!-- Cursor-only control: no role, no tabindex, no handler attribute.
+     The ONLY interactivity signal is the pointer cursor (plus the
+     listener the framework attached). -->
+<div class="card" id="paketA" style="cursor:pointer">Pilih Paket A</div>
+
+<!-- Inline-handler control: no cursor style, no role — jsaction attr -->
+<div class="card" id="paketB" jsaction="click:noop">Pilih Paket B</div>
+
+<!-- Plain content: NO signals at all — must NOT be collected. -->
+<p class="plain" id="plainText">Paragraf biasa bukan kontrol</p>
+
+<!-- Disclosure whose state lives in aria-expanded + data-state. -->
+<div class="card" id="disc" role="button" aria-expanded="false" data-state="closed" style="cursor:pointer">Detail Harga</div>
+
+<!-- Radix-style checkbox: a <button role="checkbox"> whose state is
+     carried ONLY by data-state (no aria-checked at all). -->
+<button type="button" id="radixBox" role="checkbox" data-state="checked">Setuju Syarat</button>
+<button type="button" id="radixBox2" role="checkbox" data-state="unchecked">Terima Newsletter</button>
+
+<p id="state">paket: -</p>
+
+<script>
+  const state = document.getElementById('state');
+  document.getElementById('paketA').addEventListener('click', (e) => {
+    document.querySelectorAll('.card').forEach((c) => c.classList.remove('selected'));
+    e.currentTarget.classList.add('selected');
+    state.textContent = 'paket: A';
+  });
+  document.getElementById('disc').addEventListener('click', (e) => {
+    const el = e.currentTarget;
+    const open = el.getAttribute('aria-expanded') === 'true';
+    el.setAttribute('aria-expanded', String(!open));
+    el.setAttribute('data-state', open ? 'closed' : 'open');
+  });
+  for (const id of ['radixBox', 'radixBox2']) {
+    document.getElementById(id).addEventListener('click', (e) => {
+      const el = e.currentTarget;
+      el.setAttribute('data-state', el.getAttribute('data-state') === 'checked' ? 'unchecked' : 'checked');
+    });
+  }
+</script>
+</body>
+</html>

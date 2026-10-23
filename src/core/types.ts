@@ -23,6 +23,12 @@ export interface ElementRef {
    *  Modern form builders (Google Forms et al.) render these as plain
    *  divs, so without this the model cannot tell what is selected. */
   checked?: boolean;
+  /** Generic widget state tokens ("expanded", "pressed selected", …)
+   *  gathered across conventions: aria-expanded/pressed/current,
+   *  Radix-style data-state, and active/selected classes. Lets the
+   *  model see a menu is open or a card is active without knowing
+   *  which framework rendered it. */
+  state?: string;
   /** The control's type attribute (text, email, checkbox, date, ...) for form fields. */
   inputType?: string;
   disabled?: boolean;

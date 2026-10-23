@@ -111,4 +111,11 @@ describe('hashSnapshot', () => {
     const b = snapshot([{ ...base, index: 0, checked: true }]);
     expect(hashSnapshot(a)).not.toBe(hashSnapshot(b));
   });
+
+  it('changes when only a generic state token flips (menu opens)', () => {
+    const base = el('Detail', 'body > div');
+    const a = snapshot([{ ...base, index: 0 }]);
+    const b = snapshot([{ ...base, index: 0, state: 'expanded' }]);
+    expect(hashSnapshot(a)).not.toBe(hashSnapshot(b));
+  });
 });

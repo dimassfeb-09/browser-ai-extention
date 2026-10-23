@@ -774,6 +774,60 @@ try {
     snapAria3.elements.find((e) => e.role === 'checkbox' && e.label === 'Membaca')?.checked === true,
   );
 
+
+  // ---------- Part H: heuristic collection + generic state ----------
+  // Framework-X controls with NO standard pattern: a cursor-only
+  // clickable div, a jsaction-wired div, a Radix-style checkbox whose
+  // state lives only in data-state. The scored collector must find
+  // them all — and leave plain content out.
+  const pageHx = await context.newPage();
+  await pageHx.goto(`${fixtureBase}/heuristic-form.html`);
+  const tabHx = await tabIdFor('heuristic-form');
+  const snapHx = await observe(tabHx);
+  const paketAH = snapHx.elements.find((e) => e.label === 'Pilih Paket A');
+  const paketBH = snapHx.elements.find((e) => e.label === 'Pilih Paket B');
+  check('H0 cursor-only div is collected (pointer cursor signal)', Boolean(paketAH));
+  check('H0 jsaction-wired div is collected (handler attribute signal)', Boolean(paketBH));
+  check(
+    'H0 plain paragraph is NOT collected (noise control)',
+    !snapHx.elements.some((e) => e.label.includes('Paragraf biasa')),
+  );
+  const radixOnH = snapHx.elements.find((e) => e.label === 'Setuju Syarat');
+  const radixOffH = snapHx.elements.find((e) => e.label === 'Terima Newsletter');
+  check(
+    'H0 checked derives from data-state alone (no aria-checked)',
+    radixOnH?.checked === true && radixOffH?.checked === false,
+    `on=${radixOnH?.checked} off=${radixOffH?.checked}`,
+  );
+  await send(tabHx, { kind: 'waa:act', action: { type: 'click', index: paketAH.index } });
+  await sleep(200);
+  const stateHx = await pageHx.evaluate(() => document.getElementById('state').textContent);
+  check('H1 clicking the cursor-only div runs its handler', stateHx.includes('paket: A'), stateHx);
+  const snapHxx2 = await observe(tabHx);
+  check(
+    'H1 the picked card reports state=selected (class convention)',
+    snapHxx2.elements.find((e) => e.label === 'Pilih Paket A')?.state === 'selected',
+    snapHxx2.elements.find((e) => e.label === 'Pilih Paket A')?.state,
+  );
+  const discHx = snapHxx2.elements.find((e) => e.label === 'Detail Harga');
+  check('H2 disclosure starts without the expanded state', discHx?.state === undefined, discHx?.state);
+  await send(tabHx, { kind: 'waa:act', action: { type: 'click', index: discHx.index } });
+  await sleep(200);
+  const snapHxx3 = await observe(tabHx);
+  check(
+    'H2 after the click the disclosure reports state=expanded',
+    snapHxx3.elements.find((e) => e.label === 'Detail Harga')?.state === 'expanded',
+    snapHxx3.elements.find((e) => e.label === 'Detail Harga')?.state,
+  );
+  const radix2H = snapHxx3.elements.find((e) => e.label === 'Terima Newsletter');
+  await send(tabHx, { kind: 'waa:act', action: { type: 'click', index: radix2H.index } });
+  await sleep(200);
+  const snapHxx4 = await observe(tabHx);
+  check(
+    'H2 Radix-style checkbox click flips its derived checked state',
+    snapHxx4.elements.find((e) => e.label === 'Terima Newsletter')?.checked === true,
+  );
+
 } finally {
   if (ocrWorker) await ocrWorker.terminate();
   await context.close();

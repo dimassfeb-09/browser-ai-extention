@@ -127,4 +127,11 @@ describe('formatSnapshot checked state (ARIA widgets)', () => {
     expect(lines.find((l) => l.includes('Kuning'))).toContain('CHECKED');
     expect(lines.find((l) => l.includes('Merah'))).not.toContain('CHECKED');
   });
+
+  it('renders generic widget state tokens', () => {
+    const els: ElementRef[] = [
+      { index: 0, tag: 'div', role: 'button', label: 'Detail Harga', state: 'expanded', fingerprint: { tag: 'div', label: 'Detail Harga', cssPath: 'body > div' } },
+    ];
+    expect(formatSnapshot(snap(els))).toContain('state=expanded');
+  });
 });

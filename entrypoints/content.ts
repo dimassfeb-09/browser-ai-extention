@@ -2,6 +2,13 @@ import { defineContentScript } from '#imports';
 import { browser } from 'wxt/browser';
 import type { Action, ActResult, ElementRef, PageSnapshot } from '../src/core/types';
 import type { ContentRequest, ContentResponse } from '../src/adapters/chrome/protocol';
+import {
+  deriveChecked,
+  deriveState,
+  interactivityScore,
+  INTERACTIVE_THRESHOLD,
+  type InteractivitySignals,
+} from '../src/core/interactive';
 
 /**
  * Content script: the ONLY place that touches the live DOM.
@@ -14,8 +21,10 @@ import type { ContentRequest, ContentResponse } from '../src/adapters/chrome/pro
  * (controlled React/Vue inputs revert), escalate to the next level.
  */
 
-const INTERACTIVE =
-  'a[href], button, input, select, textarea, [role="button"], [role="link"], [role="radio"], [role="checkbox"], [role="option"], [role="switch"], [contenteditable="true"], [tabindex]';
+/** Hard cap on collected elements: past this, the lowest-scored
+ *  candidates are dropped (DOM order preserved for the rest) so a
+ *  pathological page cannot flood the snapshot. */
+const MAX_COLLECTED = 600;
 
 let lastElements: HTMLElement[] = [];
 
@@ -92,21 +101,64 @@ function cssPathOf(el: Element): string {
   return parts.join(' > ');
 }
 
+function signalsOf(el: HTMLElement): InteractivitySignals {
+  return {
+    tag: el.tagName.toLowerCase(),
+    href: el instanceof HTMLAnchorElement ? el.hasAttribute('href') : undefined,
+    role: el.getAttribute('role') ?? undefined,
+    contentEditable: el.isContentEditable || undefined,
+    tabIndexAttr: el.hasAttribute('tabindex') || undefined,
+    clickHandler:
+      el.hasAttribute('onclick') ||
+      el.hasAttribute('jsaction') ||
+      el.hasAttribute('data-action') ||
+      undefined,
+  };
+}
+
 function collectRaw(): Array<{ meta: Omit<ElementRef, 'index'>; el: HTMLElement }> {
+  // Every element is a candidate now (plus shadow subtrees): what
+  // enters the snapshot is decided by the interactivity SCORE of its
+  // signals (src/core/interactive), not by a fixed selector — a
+  // framework the collector has never seen still surfaces its
+  // controls as long as they behave like controls.
   const found: HTMLElement[] = [];
   const walk = (root: Node) => {
-    const els = (root as Element).querySelectorAll?.(INTERACTIVE);
-    els?.forEach((e) => found.push(e as HTMLElement));
     (root as Element).querySelectorAll?.('*').forEach((e) => {
+      found.push(e as HTMLElement);
       if ((e as HTMLElement).shadowRoot) walk((e as HTMLElement).shadowRoot!);
     });
   };
   if (document.body) walk(document.body);
 
-  const raw: Array<{ meta: Omit<ElementRef, 'index'>; el: HTMLElement }> = [];
+  const scored: Array<{ meta: Omit<ElementRef, 'index'>; el: HTMLElement; score: number }> = [];
   for (const el of found) {
-    if (!isVisible(el)) continue;
     const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) continue;
+    const signals = signalsOf(el);
+    let score = interactivityScore(signals);
+    // The computed style settles visibility AND the cursor signal;
+    // read it once, and only consult the cursor when the cheap
+    // attribute signals have not already qualified the element.
+    let style: CSSStyleDeclaration | undefined;
+    if (score < INTERACTIVE_THRESHOLD) {
+      style = window.getComputedStyle(el);
+      if (style.cursor === 'pointer') {
+        signals.cursorPointer = true;
+        score = interactivityScore(signals);
+      }
+    }
+    if (score < INTERACTIVE_THRESHOLD) continue;
+    style ??= window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    // Page-sized wrappers with a pointer cursor are layout, not
+    // controls — unless natively interactive.
+    if (
+      score < 100 &&
+      rect.width * rect.height > 0.92 * window.innerWidth * window.innerHeight
+    ) {
+      continue;
+    }
     const input = el as HTMLInputElement;
     const label = labelOf(el);
     // [role="listitem"] is the question-block container in Google
@@ -119,8 +171,9 @@ function collectRaw(): Array<{ meta: Omit<ElementRef, 'index'>; el: HTMLElement 
       const t = (rowHost.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 90);
       if (t && t !== label) context = t;
     }
-    raw.push({
+    scored.push({
       el,
+      score,
       meta: {
         tag: el.tagName.toLowerCase(),
         role: el.getAttribute('role') ?? undefined,
@@ -131,14 +184,20 @@ function collectRaw(): Array<{ meta: Omit<ElementRef, 'index'>; el: HTMLElement 
           (el as HTMLInputElement).disabled === true ||
           el.getAttribute('aria-disabled') === 'true',
         value: 'value' in input && input.type !== 'password' ? String(input.value ?? '') : undefined,
-        checked:
-          el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')
-            ? el.checked
-            : el.getAttribute('aria-checked') != null
-              ? el.getAttribute('aria-checked') === 'true'
-              : el.getAttribute('aria-selected') != null
-                ? el.getAttribute('aria-selected') === 'true'
-                : undefined,
+        checked: deriveChecked({
+          nativeType: el instanceof HTMLInputElement ? el.type : undefined,
+          nativeChecked: el instanceof HTMLInputElement ? el.checked : undefined,
+          ariaChecked: el.getAttribute('aria-checked'),
+          dataState: el.getAttribute('data-state'),
+          ariaSelected: el.getAttribute('aria-selected'),
+        }),
+        state: deriveState({
+          ariaExpanded: el.getAttribute('aria-expanded'),
+          ariaPressed: el.getAttribute('aria-pressed'),
+          ariaCurrent: el.getAttribute('aria-current'),
+          dataState: el.getAttribute('data-state'),
+          classTokens: el.classList ? [...el.classList] : [],
+        }),
         placeholder: input.placeholder || undefined,
         href: el instanceof HTMLAnchorElement ? el.href : undefined,
         fingerprint: { tag: el.tagName.toLowerCase(), label, cssPath: cssPathOf(el) },
@@ -146,7 +205,16 @@ function collectRaw(): Array<{ meta: Omit<ElementRef, 'index'>; el: HTMLElement 
       },
     });
   }
-  return raw;
+  if (scored.length > MAX_COLLECTED) {
+    const keep = new Set(
+      [...scored]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, MAX_COLLECTED)
+        .map((s) => s.el),
+    );
+    return scored.filter((s) => keep.has(s.el)).map(({ meta, el }) => ({ meta, el }));
+  }
+  return scored.map(({ meta, el }) => ({ meta, el }));
 }
 
 function observe(): PageSnapshot {

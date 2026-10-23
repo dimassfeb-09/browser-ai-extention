@@ -169,7 +169,21 @@ type a goal for the active tab, Run.
   collector now indexes radio/checkbox/option/switch roles, reports
   their selection state (`checked`, rendered as `CHECKED` and part of
   the snapshot hash), and attaches the enclosing
-  `[role="listitem"]` question block as context. Suite total 45/45
+  `[role="listitem"]` question block as context. Suite total 45/45.
+  **Part H** then replaced the collector's fixed selector whitelist
+  with scored heuristic detection (`src/core/interactive.ts`): every
+  element is scored from generic signals — native tag, any
+  interactive ARIA role, handler attributes (`onclick`/`jsaction`/
+  `data-action`), tabindex, contenteditable, and the computed
+  pointer cursor — so a framework the collector has never seen still
+  surfaces its controls as long as they behave like controls. Widget
+  state is likewise generic: `checked` derives from native state,
+  `aria-checked`, Radix-style `data-state`, or `aria-selected`, and a
+  `state` token string gathers `aria-expanded`/`pressed`/`current`,
+  `data-state`, and active/selected classes. The fixture
+  (`tests/fixtures/heuristic-form.html`) drives a cursor-only
+  clickable div, a jsaction-wired div, and a data-state-only
+  checkbox; plain content must stay uncollected. Suite total 54/54
   (2026-10-23).
   Note: the fake LLM server sends CORS headers; a real custom Base URL
   endpoint needs the same, or a matching `host_permissions` entry.
